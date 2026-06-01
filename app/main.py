@@ -1,9 +1,11 @@
 import asyncio
 
+import socks
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand, BotCommandScopeDefault
+from aiogram.client.session.aiohttp import AiohttpSession
 
 from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
@@ -38,10 +40,24 @@ async def run_bot() -> None:
     telethon = await TelethonService.create(settings)
     ai = create_ai_provider(settings)
     logger.info("ai_provider_selected", provider=ai.name)
+    PROXY_IP = '45.93.137.80'  # IP-адрес прокси
+    PROXY_PORT = 3128  # Порт прокси
+    PROXY_USER = 'proxy_user'  # Логин (если прокси без авторизации, поставьте None)
+    PROXY_PASS = '97vAN1S'  # Пароль (если прокси без авторизации, поставьте None)
+
+    # Формируем конфигурацию прокси (для HTTPS используется socks.HTTP)
+    proxy_config = (socks.HTTP, PROXY_IP, PROXY_PORT, True, PROXY_USER, PROXY_PASS)
+
+    session = AiohttpSession(
+        proxy=proxy_config
+    )
 
     bot = Bot(
         token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        session=session,
+        default=DefaultBotProperties(
+            parse_mode=ParseMode.HTML
+        ),
     )
     dp = Dispatcher()
     dp.update.middleware(LoggingMiddleware())
