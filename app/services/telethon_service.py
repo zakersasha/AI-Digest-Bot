@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
+import socks
 from telethon import TelegramClient
 from telethon.errors import (
     ChannelInvalidError,
@@ -19,7 +20,13 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 _USERNAME_PATTERN = re.compile(r"^@?[a-zA-Z][a-zA-Z0-9_]{3,31}$")
+PROXY_IP = '45.93.137.80'   # IP-адрес прокси
+PROXY_PORT = 3128           # Порт прокси
+PROXY_USER = 'proxy_user'     # Логин (если прокси без авторизации, поставьте None)
+PROXY_PASS = '97vAN1S'     # Пароль (если прокси без авторизации, поставьте None)
 
+# Формируем конфигурацию прокси (для HTTPS используется socks.HTTP)
+proxy_config = (socks.HTTP, PROXY_IP, PROXY_PORT, True, PROXY_USER, PROXY_PASS)
 
 @dataclass
 class ChannelMessage:
@@ -36,9 +43,10 @@ class TelethonService:
     @classmethod
     async def create(cls, settings: Settings) -> "TelethonService":
         client = TelegramClient(
-            StringSession(settings.telegram_session_string),
-            settings.telegram_api_id,
-            settings.telegram_api_hash,
+            session=StringSession(settings.telegram_session_string),
+            api_id=settings.telegram_api_id,
+            api_hash=settings.telegram_api_hash,
+            proxy=proxy_config
         )
         await client.connect()
         if not await client.is_user_authorized():
