@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, BotCommandScopeDefault
 
 from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
@@ -25,7 +25,7 @@ async def set_bot_commands(bot: Bot) -> None:
         BotCommand(command="digest", description="Generate AI digest"),
         BotCommand(command="help", description="Help"),
     ]
-    await bot.set_my_commands(commands)
+    await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
 
 
 async def run_bot() -> None:
