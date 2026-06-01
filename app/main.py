@@ -45,11 +45,12 @@ async def run_bot() -> None:
     PROXY_USER = 'proxy_user'  # Логин (если прокси без авторизации, поставьте None)
     PROXY_PASS = '97vAN1S'  # Пароль (если прокси без авторизации, поставьте None)
 
-    # Формируем конфигурацию прокси (для HTTPS используется socks.HTTP)
-    proxy_config = (socks.HTTP, PROXY_IP, PROXY_PORT, True, PROXY_USER, PROXY_PASS)
+    proxy_url = (
+        f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_IP}:{PROXY_PORT}"
+    )
 
     session = AiohttpSession(
-        proxy=proxy_config
+        proxy=proxy_url
     )
 
     bot = Bot(
