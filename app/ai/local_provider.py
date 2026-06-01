@@ -1,0 +1,64 @@
+import re
+
+import httpx
+
+from app.ai.base import AIProvider, MessageScore
+from app.ai.prompts import FINAL_DIGEST_PROMPT, MESSAGE_SCORING_PROMPT
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+_SCORE_PATTERN = re.compile(r"SCORE:\s*(\d+)", re.IGNORECASE)
+_SUMMARY_PATTERN = re.compile(r"SUMMARY:\s*(.+)", re.IGNORECASE | re.DOTALL)
+
+
+class LocalAIProvider(AIProvider):
+    def __init__(self, base_url: str, model: str, timeout: float = 120.0) -> None:
+        self._base_url = base_url.rstrip("/")
+        self._model = model
+        self._timeout = timeout
+
+    @property
+    def name(self) -> str:
+        return "local"
+
+    async def complete(self, prompt: str) -> str:
+        url = f"{self._base_url}/v1/chat/completions"
+        payload = {
+            "model": self._model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+        }
+
+        logger.info("ai_request", provider=self.name, model=self._model)
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        content = data["choices"][0]["message"]["content"]
+        logger.info("ai_response", provider=self.name, chars=len(content))
+        return content.strip()
+
+    async def score_message(self, message: str) -> MessageScore:
+        prompt = MESSAGE_SCORING_PROMPT.format(message=message)
+        raw = await self.complete(prompt)
+        return _parse_score_response(raw)
+
+    async def generate_digest(self, messages: list[str]) -> str:
+        if not messages:
+            return ""
+        joined = "\n\n".join(f"- {msg}" for msg in messages)
+        prompt = FINAL_DIGEST_PROMPT.format(messages=joined)
+        return await self.complete(prompt)
+
+
+def _parse_score_response(raw: str) -> MessageScore:
+    score_match = _SCORE_PATTERN.search(raw)
+    summary_match = _SUMMARY_PATTERN.search(raw)
+
+    score = int(score_match.group(1)) if score_match else 5
+    score = max(1, min(10, score))
+
+    summary = summary_match.group(1).strip() if summary_match else raw.strip()[:200]
+    return MessageScore(score=score, summary=summary)
