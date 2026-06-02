@@ -71,6 +71,16 @@ class DigestService:
                 ) as exc:
                     logger.error("ai_score_batch_failed", provider=self._ai.name, error=str(exc))
                     raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
+                except Exception as exc:
+                    logger.warning(
+                        "ai_score_batch_error",
+                        provider=self._ai.name,
+                        error=str(exc),
+                        batch_size=len(batch),
+                    )
+                    results = []
+                    for text in texts:
+                        results.append(await self._ai.score_message(text, language))
 
                 summaries: list[str] = []
                 for msg, result in zip(batch, results, strict=False):
@@ -146,6 +156,13 @@ class DigestService:
         except (httpx.HTTPError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
             logger.error("ai_digest_failed", provider=self._ai.name, error=str(exc))
             raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
+        except Exception as exc:
+            logger.error("ai_digest_failed", provider=self._ai.name, error=str(exc))
+            raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
+
+        if not digest_body.strip():
+            logger.error("ai_digest_empty", provider=self._ai.name)
+            raise RuntimeError(t(language, "ai_failed", provider=self._ai.name))
 
         header = t(language, "digest_header", label=label) + "\n\n"
         content = header + digest_body.strip()

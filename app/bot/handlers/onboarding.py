@@ -1,3 +1,5 @@
+import asyncio
+
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
@@ -31,7 +33,12 @@ from app.i18n import DEFAULT_LANG, frequency_label, resolve_lang, t
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.digest_service import DigestService
+from app.utils.logging import get_logger
 from app.utils.telegram import split_telegram_message
+
+logger = get_logger(__name__)
+
+_digest_user_locks: dict[int, asyncio.Lock] = {}
 
 router = Router(name="onboarding")
 
@@ -232,38 +239,54 @@ async def cb_digest_now(
         await callback.answer(t(lang, "pick_channel_first"), show_alert=True)
         return
 
+    lock = _digest_user_locks.setdefault(callback.from_user.id, asyncio.Lock())
+    if lock.locked():
+        await callback.answer(t(lang, "digest_in_progress"), show_alert=True)
+        return
+
     await callback.answer()
     label = frequency_label(lang, user.digest_frequency)
     await edit_from_callback(callback, state, t(lang, "digest_generating", label=label), None)
 
-    try:
-        content = await digest_service.generate_for_user(user.id, user.digest_frequency, lang)
-        parts = split_telegram_message(content)
-        first = parts[0]
-        if len(parts) > 1:
-            first += f"\n\n_{t(lang, 'digest_truncated')}_"
+    async with lock:
         try:
+            content = await digest_service.generate_for_user(
+                user.id,
+                user.digest_frequency,
+                lang,
+            )
+            parts = split_telegram_message(content)
+            first = parts[0]
+            if len(parts) > 1:
+                first += f"\n\n_{t(lang, 'digest_truncated')}_"
+            try:
+                await edit_from_callback(
+                    callback,
+                    state,
+                    first,
+                    back_to_menu_keyboard(lang),
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except TelegramBadRequest:
+                await edit_from_callback(
+                    callback,
+                    state,
+                    parts[0],
+                    back_to_menu_keyboard(lang),
+                    parse_mode=None,
+                )
+        except ValueError as exc:
+            await edit_from_callback(callback, state, f"ℹ️ {exc}", back_to_menu_keyboard(lang))
+        except RuntimeError as exc:
+            await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
+        except Exception:
+            logger.exception("digest_handler_failed", telegram_id=callback.from_user.id)
             await edit_from_callback(
                 callback,
                 state,
-                first,
+                t(lang, "digest_failed"),
                 back_to_menu_keyboard(lang),
-                parse_mode=ParseMode.MARKDOWN,
             )
-        except TelegramBadRequest:
-            await edit_from_callback(
-                callback,
-                state,
-                parts[0],
-                back_to_menu_keyboard(lang),
-                parse_mode=None,
-            )
-    except ValueError as exc:
-        await edit_from_callback(callback, state, f"ℹ️ {exc}", back_to_menu_keyboard(lang))
-    except RuntimeError as exc:
-        await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
-    except Exception:
-        await edit_from_callback(callback, state, t(lang, "digest_failed"), back_to_menu_keyboard(lang))
 
 
 @router.message(Command("menu"))

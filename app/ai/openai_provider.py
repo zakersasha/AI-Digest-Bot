@@ -4,6 +4,7 @@ from app.ai.base import AIProvider, MessageScore
 from app.ai.context_limits import chars_for_tokens, fit_items_to_budget, truncate_text
 from app.ai.prompts import BATCH_SCORING_PROMPT, FINAL_DIGEST_PROMPT, MESSAGE_SCORING_PROMPT
 from app.ai.scoring import (
+    batch_response_usable,
     format_batch_messages,
     parse_batch_score_response,
     parse_score_response,
@@ -73,6 +74,14 @@ class OpenAIProvider(AIProvider):
             language_name=language_name(language),
         )
         raw = await self.complete(prompt)
+        if not batch_response_usable(raw, len(messages)):
+            logger.warning(
+                "batch_scoring_fallback",
+                provider=self.name,
+                batch_size=len(messages),
+                response_chars=len(raw),
+            )
+            return [await self.score_message(text, language) for text in messages]
         return parse_batch_score_response(raw, len(messages))
 
     async def generate_digest(

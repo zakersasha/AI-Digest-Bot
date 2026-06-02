@@ -17,6 +17,15 @@ def parse_score_response(raw: str) -> MessageScore:
     return MessageScore(score=score, summary=summary)
 
 
+def batch_response_usable(raw: str, expected: int) -> bool:
+    """Heuristic: model followed batch format with one SCORE per message."""
+    text = raw.strip()
+    if len(text) < 30:
+        return False
+    scores = len(_SCORE_PATTERN.findall(text))
+    return scores >= max(1, expected // 2)
+
+
 def parse_batch_score_response(raw: str, expected: int) -> list[MessageScore]:
     scores = [int(x) for x in _SCORE_PATTERN.findall(raw)]
     summaries = [s.strip() for s in _SUMMARY_PATTERN.findall(raw)]
