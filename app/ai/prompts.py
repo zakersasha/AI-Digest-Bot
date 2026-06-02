@@ -13,6 +13,17 @@ SUMMARY: <one or two sentences>
 Message:
 {message}"""
 
+BATCH_SCORING_PROMPT = """Analyze each Telegram message block below.
+
+IMPORTANT: Write every SUMMARY in {language_name} only.
+
+For each block (--- MSG #N ---) output exactly:
+SCORE: <number 1-10>
+SUMMARY: <one or two sentences>
+
+Blocks:
+{messages}"""
+
 FINAL_DIGEST_PROMPT = """Create a digest from these Telegram message summaries.
 
 IMPORTANT:

@@ -1,18 +1,18 @@
-import re
-
 import httpx
 
 from app.ai.base import AIProvider, MessageScore
 from app.ai.context_limits import chars_for_tokens, fit_items_to_budget, truncate_text
-from app.ai.prompts import FINAL_DIGEST_PROMPT, MESSAGE_SCORING_PROMPT
+from app.ai.prompts import BATCH_SCORING_PROMPT, FINAL_DIGEST_PROMPT, MESSAGE_SCORING_PROMPT
+from app.ai.scoring import (
+    format_batch_messages,
+    parse_batch_score_response,
+    parse_score_response,
+)
 from app.config import get_settings
 from app.i18n import language_name
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-_SCORE_PATTERN = re.compile(r"SCORE:\s*(\d+)", re.IGNORECASE)
-_SUMMARY_PATTERN = re.compile(r"SUMMARY:\s*(.+)", re.IGNORECASE | re.DOTALL)
 
 
 class LocalAIProvider(AIProvider):
@@ -54,7 +54,25 @@ class LocalAIProvider(AIProvider):
             language_name=language_name(language),
         )
         raw = await self.complete(prompt)
-        return _parse_score_response(raw)
+        return parse_score_response(raw)
+
+    async def score_messages_batch(
+        self,
+        messages: list[str],
+        language: str,
+    ) -> list[MessageScore]:
+        if not messages:
+            return []
+        if len(messages) == 1:
+            return [await self.score_message(messages[0], language)]
+
+        joined = format_batch_messages(messages)
+        prompt = BATCH_SCORING_PROMPT.format(
+            messages=joined,
+            language_name=language_name(language),
+        )
+        raw = await self.complete(prompt)
+        return parse_batch_score_response(raw, len(messages))
 
     async def generate_digest(
         self,
@@ -74,14 +92,3 @@ class LocalAIProvider(AIProvider):
             language_name=language_name(language),
         )
         return await self.complete(prompt)
-
-
-def _parse_score_response(raw: str) -> MessageScore:
-    score_match = _SCORE_PATTERN.search(raw)
-    summary_match = _SUMMARY_PATTERN.search(raw)
-
-    score = int(score_match.group(1)) if score_match else 5
-    score = max(1, min(10, score))
-
-    summary = summary_match.group(1).strip() if summary_match else raw.strip()[:200]
-    return MessageScore(score=score, summary=summary)

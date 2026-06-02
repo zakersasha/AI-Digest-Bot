@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     ai_score_message_max_chars: int = Field(default=800, alias="AI_SCORE_MESSAGE_MAX_CHARS")
     ai_max_messages_to_score: int = Field(default=25, alias="AI_MAX_MESSAGES_TO_SCORE")
     ai_max_digest_items: int = Field(default=12, alias="AI_MAX_DIGEST_ITEMS")
+    ai_score_batch_size: int = Field(default=4, alias="AI_SCORE_BATCH_SIZE")
+    ai_score_concurrency: int = Field(default=2, alias="AI_SCORE_CONCURRENCY")
+    ai_min_message_chars: int = Field(default=40, alias="AI_MIN_MESSAGE_CHARS")
     default_timezone: str = Field(default="Europe/Moscow", alias="DEFAULT_TIMEZONE")
     catalog_channels: str = Field(default="", alias="CATALOG_CHANNELS")
 

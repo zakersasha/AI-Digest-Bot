@@ -17,6 +17,17 @@ class AIProvider(ABC):
     async def score_message(self, message: str, language: str) -> MessageScore:
         """Score message importance and return a 1-2 sentence summary."""
 
+    async def score_messages_batch(
+        self,
+        messages: list[str],
+        language: str,
+    ) -> list[MessageScore]:
+        """Score multiple messages; default implementation calls score_message per item."""
+        results: list[MessageScore] = []
+        for message in messages:
+            results.append(await self.score_message(message, language))
+        return results
+
     @abstractmethod
     async def generate_digest(
         self,

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 
 import httpx
@@ -36,6 +37,55 @@ class DigestService:
         self._digest_repo = DigestRepository(session)
         self._user_repo = UserRepository(session)
 
+    async def _score_messages(
+        self,
+        messages: list[ChannelMessage],
+        language: str,
+    ) -> list[str]:
+        score_char_limit = self._settings.ai_score_message_max_chars
+        min_chars = self._settings.ai_min_message_chars
+        candidates: list[ChannelMessage] = []
+        for msg in messages:
+            text = truncate_text(msg.text, score_char_limit)
+            if len(text) >= min_chars:
+                candidates.append(msg)
+
+        batch_size = max(1, self._settings.ai_score_batch_size)
+        concurrency = max(1, self._settings.ai_score_concurrency)
+        sem = asyncio.Semaphore(concurrency)
+
+        batches: list[list[ChannelMessage]] = [
+            candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)
+        ]
+
+        async def score_batch(batch: list[ChannelMessage]) -> list[str]:
+            async with sem:
+                texts = [truncate_text(m.text, score_char_limit) for m in batch]
+                try:
+                    results = await self._ai.score_messages_batch(texts, language)
+                except (
+                    httpx.HTTPError,
+                    APIConnectionError,
+                    APITimeoutError,
+                    RateLimitError,
+                ) as exc:
+                    logger.error("ai_score_batch_failed", provider=self._ai.name, error=str(exc))
+                    raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
+
+                summaries: list[str] = []
+                for msg, result in zip(batch, results, strict=False):
+                    if result.score >= self._min_score:
+                        summary = truncate_text(result.summary, 280)
+                        source_link = markdown_source_link(msg.source, msg.message_id)
+                        summaries.append(f"SUMMARY: {summary}\nSOURCE_LINK: {source_link}")
+                return summaries
+
+        batch_results = await asyncio.gather(*[score_batch(b) for b in batches])
+        scored: list[str] = []
+        for chunk in batch_results:
+            scored.extend(chunk)
+        return scored
+
     async def generate_for_user(self, user_id: int, frequency: str, language: str) -> str:
         sources = await self._source_repo.list_active_for_user(user_id)
         if not sources:
@@ -70,29 +120,9 @@ class DigestService:
         if len(all_messages) > max_to_score:
             all_messages.sort(key=lambda m: m.date, reverse=True)
             all_messages = all_messages[:max_to_score]
-            logger.info(
-                "messages_truncated_for_scoring",
-                user_id=user_id,
-                kept=max_to_score,
-            )
+            logger.info("messages_truncated_for_scoring", user_id=user_id, kept=max_to_score)
 
-        score_char_limit = self._settings.ai_score_message_max_chars
-        scored_summaries: list[str] = []
-        for msg in all_messages:
-            text = truncate_text(msg.text, score_char_limit)
-            if not text:
-                continue
-            try:
-                result = await self._ai.score_message(text, language)
-                if result.score >= self._min_score:
-                    summary = truncate_text(result.summary, 280)
-                    source_link = markdown_source_link(msg.source, msg.message_id)
-                    scored_summaries.append(
-                        f"SUMMARY: {summary}\nSOURCE_LINK: {source_link}"
-                    )
-            except (httpx.HTTPError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
-                logger.error("ai_score_failed", provider=self._ai.name, error=str(exc))
-                raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
+        scored_summaries = await self._score_messages(all_messages, language)
 
         if not scored_summaries:
             raise ValueError(t(language, "no_important"))
@@ -131,5 +161,6 @@ class DigestService:
             language=language,
             messages=len(all_messages),
             highlights=len(scored_summaries),
+            ai_batches=len(scored_summaries) // max(1, self._settings.ai_score_batch_size) + 1,
         )
         return content
