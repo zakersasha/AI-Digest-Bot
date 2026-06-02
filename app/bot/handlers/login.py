@@ -11,7 +11,14 @@ from app.bot.states import LoginStates
 from app.config import get_settings
 from app.i18n import resolve_lang, t
 from app.repositories.user_repository import UserRepository
-from app.services.telethon_auth import cancel_login, complete_login, start_login
+from app.services.telethon_auth import (
+    cancel_login,
+    complete_login,
+    get_pending_phone,
+    is_plausible_phone,
+    looks_like_sms_code,
+    start_login,
+)
 
 router = Router(name="login")
 
@@ -47,9 +54,8 @@ async def _advance_to_code_step(
     state: FSMContext,
     lang: str,
     phone: str,
-    phone_code_hash: str,
 ) -> None:
-    await state.update_data(login_phone=phone, login_phone_code_hash=phone_code_hash)
+    await state.update_data(login_phone=phone)
     await state.set_state(LoginStates.waiting_code)
     await edit_screen(
         message,
@@ -66,31 +72,56 @@ async def _submit_phone(
     raw_phone: str,
 ) -> None:
     lang = await resolve_lang(session, message.from_user.id)
+
+    if looks_like_sms_code(raw_phone):
+        await message.answer(t(lang, "login_wait_for_code_screen"))
+        return
+    if not is_plausible_phone(raw_phone):
+        await message.answer(t(lang, "invalid_phone_format"))
+        return
+
+    data = await state.get_data()
+    if data.get("login_in_progress"):
+        return
+
+    await state.update_data(login_in_progress=True)
     await hide_phone_keyboard(message)
     try:
         await message.delete()
     except Exception:
         pass
 
+    await state.set_state(LoginStates.sending_code)
     await replace_screen(message, state, t(lang, "login_connecting"), None)
+
     settings = get_settings()
     try:
         sent = await start_login(message.from_user.id, raw_phone, settings)
     except ValueError as exc:
         await message.answer(f"❌ {exc}")
+        await state.update_data(login_in_progress=False)
         await show_connect_step(message, state, lang)
         return
+    finally:
+        await state.update_data(login_in_progress=False)
 
-    await _advance_to_code_step(message, state, lang, sent.phone, sent.phone_code_hash)
+    await _advance_to_code_step(message, state, lang, sent.phone)
 
 
 @router.callback_query(F.data == "auth:connect")
 async def cb_auth_connect(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     await cancel_login(callback.from_user.id)
+    await state.update_data(login_in_progress=False)
     await callback.answer()
     if callback.message:
         await show_connect_step(callback.message, state, lang)
+
+
+@router.message(LoginStates.sending_code, F.text)
+async def login_sending_wait(message: Message, session: AsyncSession) -> None:
+    lang = await resolve_lang(session, message.from_user.id)
+    await message.answer(t(lang, "login_wait"))
 
 
 @router.message(LoginStates.waiting_phone, F.contact)
@@ -131,26 +162,31 @@ async def login_code(
 ) -> None:
     lang = await resolve_lang(session, message.from_user.id)
     data = await state.get_data()
-    phone = data.get("login_phone")
-    phone_code_hash = data.get("login_phone_code_hash")
-    if not phone or not phone_code_hash:
+    phone = data.get("login_phone") or get_pending_phone(message.from_user.id)
+    if not phone:
         await show_connect_step(message, state, lang)
         return
 
+    code_text = (message.text or "").strip()
+    if not code_text or not code_text.replace(" ", "").isdigit():
+        await message.answer(t(lang, "invalid_code_format"))
+        return
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
     settings = get_settings()
     try:
-        session_string = await complete_login(
-            message.from_user.id,
-            phone,
-            message.text or "",
-            phone_code_hash,
-            settings,
-        )
+        session_string = await complete_login(message.from_user.id, code_text, settings)
     except ValueError as exc:
         if str(exc) == "2FA_REQUIRED":
             await state.set_state(LoginStates.waiting_2fa)
             await edit_screen(message, state, t(lang, "step_2fa"), code_keyboard(lang))
             return
+        if "expired" in str(exc).lower():
+            await show_connect_step(message, state, lang)
         await message.answer(f"❌ {exc}")
         return
 
@@ -170,16 +206,13 @@ async def login_2fa(
 ) -> None:
     lang = await resolve_lang(session, message.from_user.id)
     data = await state.get_data()
-    phone = data.get("login_phone")
-    phone_code_hash = data.get("login_phone_code_hash")
+    phone = data.get("login_phone") or get_pending_phone(message.from_user.id)
     settings = get_settings()
 
     try:
         session_string = await complete_login(
             message.from_user.id,
-            phone,
             "",
-            phone_code_hash,
             settings,
             password=message.text or "",
         )
@@ -188,7 +221,7 @@ async def login_2fa(
         return
 
     await UserRepository(session).save_telethon_session(
-        message.from_user.id, session_string, phone
+        message.from_user.id, session_string, phone or ""
     )
     await session.commit()
     await state.set_state(None)
@@ -199,7 +232,7 @@ async def login_2fa(
 async def cb_auth_resend(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     data = await state.get_data()
-    phone = data.get("login_phone")
+    phone = data.get("login_phone") or get_pending_phone(callback.from_user.id)
     if not phone or not callback.message:
         await callback.answer()
         await show_connect_step(callback.message, state, lang)
@@ -208,8 +241,8 @@ async def cb_auth_resend(callback: CallbackQuery, state: FSMContext, session: As
     settings = get_settings()
     try:
         sent = await start_login(callback.from_user.id, phone, settings)
-        await state.update_data(login_phone_code_hash=sent.phone_code_hash)
-        await callback.answer(t(lang, "channels_refreshed"))
+        await state.update_data(login_phone=sent.phone)
+        await callback.answer(t(lang, "code_resent"))
         await edit_screen(
             callback.message,
             state,
@@ -224,6 +257,7 @@ async def cb_auth_resend(callback: CallbackQuery, state: FSMContext, session: As
 async def cb_auth_disconnect(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     await cancel_login(callback.from_user.id)
+    await state.update_data(login_in_progress=False)
     await UserRepository(session).clear_telethon_session(callback.from_user.id)
     await session.commit()
     await callback.answer()

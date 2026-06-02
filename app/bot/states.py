@@ -7,5 +7,6 @@ class OnboardingStates(StatesGroup):
 
 class LoginStates(StatesGroup):
     waiting_phone = State()
+    sending_code = State()
     waiting_code = State()
     waiting_2fa = State()
