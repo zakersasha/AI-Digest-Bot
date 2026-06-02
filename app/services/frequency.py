@@ -1,0 +1,23 @@
+from datetime import timedelta
+
+FREQUENCY_CODES = ("12h", "1d", "3d", "1w")
+
+FREQUENCY_PERIOD: dict[str, timedelta] = {
+    "12h": timedelta(hours=12),
+    "1d": timedelta(days=1),
+    "3d": timedelta(days=3),
+    "1w": timedelta(weeks=1),
+}
+
+
+def parse_frequency(code: str) -> timedelta:
+    if code not in FREQUENCY_PERIOD:
+        raise ValueError(f"Unknown frequency: {code}")
+    return FREQUENCY_PERIOD[code]
+
+
+def delivery_hours_for_frequency(delivery_hour: int, frequency: str) -> list[int]:
+    """Hours (0-23) when digest is delivered in user's timezone."""
+    if frequency == "12h":
+        return [delivery_hour % 24, (delivery_hour + 12) % 24]
+    return [delivery_hour % 24]
