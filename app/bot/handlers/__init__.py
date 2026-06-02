@@ -1,10 +1,6 @@
 from aiogram import Router
 
-from app.bot.handlers import add, digest, menu, sources, start
+from app.bot.handlers import onboarding
 
 router = Router(name="root")
-router.include_router(start.router)
-router.include_router(menu.router)
-router.include_router(add.router)
-router.include_router(sources.router)
-router.include_router(digest.router)
+router.include_router(onboarding.router)

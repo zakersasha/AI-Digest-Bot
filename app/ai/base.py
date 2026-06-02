@@ -14,11 +14,11 @@ class AIProvider(ABC):
         """Send a prompt and return raw text response."""
 
     @abstractmethod
-    async def score_message(self, message: str) -> MessageScore:
-        """Score message importance and return a one-sentence summary."""
+    async def score_message(self, message: str, language: str) -> MessageScore:
+        """Score message importance and return a 1-2 sentence summary."""
 
     @abstractmethod
-    async def generate_digest(self, messages: list[str]) -> str:
+    async def generate_digest(self, messages: list[str], language: str) -> str:
         """Generate a final digest from scored message summaries."""
 
     @property

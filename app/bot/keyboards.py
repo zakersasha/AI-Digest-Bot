@@ -1,83 +1,112 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-# Reply keyboard labels
-BTN_ADD = "➕ Add source"
-BTN_SOURCES = "📋 My sources"
-BTN_DIGEST = "🔥 Digest"
-BTN_HELP = "❓ Help"
+from app.i18n import t
+from app.models.catalog_channel import CatalogChannel
 
-TIMEFRAMES = [
-    ("1h", "⏱ 1 hour"),
-    ("3h", "⏱ 3 hours"),
-    ("6h", "⏱ 6 hours"),
-    ("12h", "⏱ 12 hours"),
-]
-
-CB_NAV_MENU = "nav:menu"
-CB_NAV_ADD = "nav:add"
-CB_NAV_SOURCES = "nav:sources"
-CB_NAV_DIGEST = "nav:digest"
-CB_NAV_HELP = "nav:help"
+CB_LANG_RU = "lang:ru"
+CB_LANG_EN = "lang:en"
+CB_CH_DONE = "ch:done"
+CB_FREQ_BACK = "freq:back"
+CB_TIME_BACK = "time:back"
+CB_ACTION_CHANNELS = "act:channels"
+CB_ACTION_SCHEDULE = "act:schedule"
+CB_ACTION_DIGEST = "act:digest"
+CB_ACTION_SETUP = "act:setup"
 
 
-def main_menu_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=BTN_ADD), KeyboardButton(text=BTN_SOURCES)],
-            [KeyboardButton(text=BTN_DIGEST), KeyboardButton(text=BTN_HELP)],
-        ],
-        resize_keyboard=True,
-        is_persistent=True,
-    )
-
-
-def back_button() -> InlineKeyboardButton:
-    return InlineKeyboardButton(text="◀️ Back to menu", callback_data=CB_NAV_MENU)
-
-
-def back_row() -> list[InlineKeyboardButton]:
-    return [back_button()]
-
-
-def timeframe_keyboard() -> InlineKeyboardMarkup:
-    buttons = [
-        InlineKeyboardButton(text=label, callback_data=f"digest:{code}")
-        for code, label in TIMEFRAMES
-    ]
+def language_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            buttons[:2],
-            buttons[2:],
-            back_row(),
+            [
+                InlineKeyboardButton(text="🇷🇺 Русский", callback_data=CB_LANG_RU),
+                InlineKeyboardButton(text="🇬🇧 English", callback_data=CB_LANG_EN),
+            ],
         ]
     )
 
 
-def sources_keyboard(sources: list) -> InlineKeyboardMarkup:
+def channels_keyboard(
+    catalog: list[CatalogChannel],
+    selected: set[int],
+    lang: str,
+) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    for source in sources:
-        status = "✅" if source.is_active else "⏸"
-        title = source.title or source.telegram_source
+    for channel in catalog:
+        mark = "✅" if channel.id in selected else "⬜"
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{status} {title}",
-                    callback_data=f"toggle:{source.id}",
-                ),
-                InlineKeyboardButton(
-                    text="🗑",
-                    callback_data=f"remove:{source.id}",
-                ),
+                    text=f"{mark} {channel.title}",
+                    callback_data=f"ch:toggle:{channel.id}",
+                )
             ]
         )
-    rows.append([InlineKeyboardButton(text="➕ Add source", callback_data=CB_NAV_ADD)])
-    rows.append(back_row())
+    rows.append(
+        [
+            InlineKeyboardButton(text=t(lang, "btn_continue"), callback_data=CB_CH_DONE),
+        ]
+    )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def add_source_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[back_row()])
+def frequency_keyboard(lang: str) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text=t(lang, "freq_12h"), callback_data="freq:12h"),
+            InlineKeyboardButton(text=t(lang, "freq_1d"), callback_data="freq:1d"),
+        ],
+        [
+            InlineKeyboardButton(text=t(lang, "freq_3d"), callback_data="freq:3d"),
+            InlineKeyboardButton(text=t(lang, "freq_1w"), callback_data="freq:1w"),
+        ],
+        [InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_FREQ_BACK)],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def help_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[back_row()])
+def time_keyboard(lang: str) -> InlineKeyboardMarkup:
+    """Popular delivery hours."""
+    hours = [7, 8, 9, 10, 12, 14, 18, 19, 20, 21, 22]
+    rows: list[list[InlineKeyboardButton]] = []
+    row: list[InlineKeyboardButton] = []
+    for hour in hours:
+        row.append(
+            InlineKeyboardButton(text=f"{hour:02d}:00", callback_data=f"time:{hour}")
+        )
+        if len(row) == 3:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_TIME_BACK)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def main_menu_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=t(lang, "menu_channels"), callback_data=CB_ACTION_CHANNELS),
+                InlineKeyboardButton(text=t(lang, "menu_schedule"), callback_data=CB_ACTION_SCHEDULE),
+            ],
+            [
+                InlineKeyboardButton(text=t(lang, "menu_digest_now"), callback_data=CB_ACTION_DIGEST),
+            ],
+            [
+                InlineKeyboardButton(text=t(lang, "menu_reconfigure"), callback_data=CB_ACTION_SETUP),
+            ],
+        ]
+    )
+
+
+def done_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=t(lang, "menu_digest_now"), callback_data=CB_ACTION_DIGEST),
+            ],
+            [
+                InlineKeyboardButton(text=t(lang, "menu_channels"), callback_data=CB_ACTION_CHANNELS),
+            ],
+        ]
+    )

@@ -1,5 +1,5 @@
 from aiogram.fsm.state import State, StatesGroup
 
 
-class AddSourceStates(StatesGroup):
-    waiting_for_source = State()
+class OnboardingStates(StatesGroup):
+    picking_channels = State()

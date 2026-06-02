@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_messages_per_source: int = Field(default=30, alias="MAX_MESSAGES_PER_SOURCE")
     min_importance_score: int = Field(default=5, alias="MIN_IMPORTANCE_SCORE")
+    default_timezone: str = Field(default="Europe/Moscow", alias="DEFAULT_TIMEZONE")
+    catalog_channels: str = Field(default="", alias="CATALOG_CHANNELS")
 
 
 @lru_cache

@@ -33,6 +33,7 @@ class ChannelMessage:
     text: str
     source: str
     date: datetime
+    message_id: int
 
 
 class TelethonService:
@@ -117,7 +118,12 @@ class TelethonService:
                 if not text:
                     continue
                 messages.append(
-                    ChannelMessage(text=text, source=username, date=msg_date)
+                    ChannelMessage(
+                        text=text,
+                        source=username,
+                        date=msg_date,
+                        message_id=message.id,
+                    )
                 )
         except FloodWaitError as exc:
             raise TimeoutError(f"Telegram rate limit. Retry in {exc.seconds}s.") from exc
@@ -130,20 +136,3 @@ class TelethonService:
             since=since.isoformat(),
         )
         return messages
-
-
-def parse_timeframe(timeframe: str) -> timedelta:
-    mapping = {
-        "1h": timedelta(hours=1),
-        "3h": timedelta(hours=3),
-        "6h": timedelta(hours=6),
-        "12h": timedelta(hours=12),
-    }
-    if timeframe not in mapping:
-        raise ValueError(f"Unknown timeframe: {timeframe}")
-    return mapping[timeframe]
-
-
-def timeframe_label(timeframe: str) -> str:
-    labels = {"1h": "Last 1h", "3h": "Last 3h", "6h": "Last 6h", "12h": "Last 12h"}
-    return labels.get(timeframe, timeframe)

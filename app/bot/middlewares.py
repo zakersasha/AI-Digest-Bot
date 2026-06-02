@@ -7,7 +7,6 @@ from aiogram.types import TelegramObject
 from app.ai.base import AIProvider
 from app.db.session import async_session_factory
 from app.services.digest_service import DigestService
-from app.services.source_service import SourceService
 from app.services.telethon_service import TelethonService
 
 
@@ -30,7 +29,6 @@ class ServicesMiddleware(BaseMiddleware):
     ) -> Any:
         async with async_session_factory() as session:
             data["session"] = session
-            data["source_service"] = SourceService(session, self._telethon)
             data["digest_service"] = DigestService(
                 session,
                 self._telethon,

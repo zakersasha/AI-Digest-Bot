@@ -15,11 +15,12 @@ from app.config import get_settings
 from app.db.session import init_db
 from app.services.telethon_service import TelethonService
 from app.utils.logging import get_logger, setup_logging
+from app.workers.scheduler import scheduler_loop
 
 logger = get_logger(__name__)
 
 
-def create_bot_session(settings) -> AiohttpSession | None:
+def create_bot_session(settings) -> AiohttpSession:
     if not settings.bot_proxy_url:
         return AiohttpSession(timeout=settings.bot_api_timeout)
     logger.info("bot_proxy_enabled")
@@ -28,11 +29,8 @@ def create_bot_session(settings) -> AiohttpSession | None:
 
 async def set_bot_commands(bot: Bot, retries: int = 3) -> None:
     commands = [
-        BotCommand(command="start", description="Welcome & setup"),
-        BotCommand(command="add", description="Add a public channel"),
-        BotCommand(command="sources", description="Manage your sources"),
-        BotCommand(command="digest", description="Generate AI digest"),
-        BotCommand(command="help", description="Help"),
+        BotCommand(command="start", description="Start / main menu"),
+        BotCommand(command="menu", description="Main menu"),
     ]
 
     for attempt in range(1, retries + 1):
@@ -41,19 +39,11 @@ async def set_bot_commands(bot: Bot, retries: int = 3) -> None:
             logger.info("bot_commands_set")
             return
         except TelegramNetworkError as exc:
-            logger.warning(
-                "bot_commands_failed",
-                attempt=attempt,
-                retries=retries,
-                error=str(exc),
-            )
+            logger.warning("bot_commands_failed", attempt=attempt, error=str(exc))
             if attempt < retries:
                 await asyncio.sleep(2 ** (attempt - 1))
 
-    logger.warning(
-        "bot_commands_skipped",
-        reason="Telegram API unreachable; bot will run without command menu",
-    )
+    logger.warning("bot_commands_skipped")
 
 
 async def run_bot() -> None:
@@ -87,9 +77,12 @@ async def run_bot() -> None:
     await set_bot_commands(bot)
     logger.info("bot_starting")
 
+    scheduler_task = asyncio.create_task(scheduler_loop(bot, telethon, settings))
+
     try:
         await dp.start_polling(bot)
     finally:
+        scheduler_task.cancel()
         await telethon.close()
         await bot.session.close()
 

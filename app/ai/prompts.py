@@ -1,19 +1,26 @@
 MESSAGE_SCORING_PROMPT = """Analyze this Telegram message.
 
+IMPORTANT: Write the SUMMARY in {language_name} only.
+
 Return:
 - importance score from 1 to 10
-- short summary in 1 sentence
+- summary in 1-2 sentences with concrete details (names, numbers, actions, outcomes)
 
 Format your response exactly as:
 SCORE: <number>
-SUMMARY: <one sentence>
+SUMMARY: <one or two sentences>
 
 Message:
 {message}"""
 
-FINAL_DIGEST_PROMPT = """Create a short digest from these Telegram messages.
+FINAL_DIGEST_PROMPT = """Create a digest from these Telegram message summaries.
 
-Focus only on:
+IMPORTANT:
+- Write the entire digest in {language_name} only.
+- Each numbered highlight must be 1-2 useful sentences (not vague one-liners).
+- At the end of EVERY numbered item, append the source link exactly as provided in the input (keep the markdown link unchanged).
+
+Focus on:
 - important updates
 - trends
 - announcements
@@ -24,20 +31,13 @@ Ignore:
 - greetings
 - low-value chatter
 
-Format the response in Telegram Markdown (NOT HTML):
-- Use *bold* for section titles and emphasis
-- Numbered highlights on separate lines: *1.* First highlight
-- End with section *Key trends:* and bullet lines starting with •
+Format in Telegram Markdown (NOT HTML):
+- Use *bold* for section titles
+- Numbered items: *1.* text ending with (SOURCE_LINK)
+- Section *Key trends:* with bullets starting with •
 
-Example structure:
-*1.* OpenAI released a new model...
-*2.* Python 3.13 beta announced...
-
-*Key trends:*
-• AI tooling growth
-• Increased GPU demand
-
-Do not use # headers or HTML tags. Escape nothing unless required.
+Example item format:
+*1.* OpenAI announced GPT-5 with 2x speed. Pricing starts at $20/month. ([@openai](https://t.me/openai/12345))
 
 Messages:
 {messages}"""

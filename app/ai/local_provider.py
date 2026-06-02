@@ -4,6 +4,7 @@ import httpx
 
 from app.ai.base import AIProvider, MessageScore
 from app.ai.prompts import FINAL_DIGEST_PROMPT, MESSAGE_SCORING_PROMPT
+from app.i18n import language_name
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -40,16 +41,22 @@ class LocalAIProvider(AIProvider):
         logger.info("ai_response", provider=self.name, chars=len(content))
         return content.strip()
 
-    async def score_message(self, message: str) -> MessageScore:
-        prompt = MESSAGE_SCORING_PROMPT.format(message=message)
+    async def score_message(self, message: str, language: str) -> MessageScore:
+        prompt = MESSAGE_SCORING_PROMPT.format(
+            message=message,
+            language_name=language_name(language),
+        )
         raw = await self.complete(prompt)
         return _parse_score_response(raw)
 
-    async def generate_digest(self, messages: list[str]) -> str:
+    async def generate_digest(self, messages: list[str], language: str) -> str:
         if not messages:
             return ""
-        joined = "\n\n".join(f"- {msg}" for msg in messages)
-        prompt = FINAL_DIGEST_PROMPT.format(messages=joined)
+        joined = "\n\n".join(f"---\n{msg}" for msg in messages)
+        prompt = FINAL_DIGEST_PROMPT.format(
+            messages=joined,
+            language_name=language_name(language),
+        )
         return await self.complete(prompt)
 
 
