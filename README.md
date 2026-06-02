@@ -144,7 +144,7 @@ OPENAI_BASE_URL=https://your-proxy/v1
 | `TELEGRAM_API_ID`         | Telethon API ID                          |
 | `TELEGRAM_API_HASH`       | Telethon API hash                        |
 | `TELEGRAM_SESSION_STRING` | Authorized Telethon session              |
-| `BOT_PROXY_URL`           | HTTP proxy for Bot API (if Telegram is blocked) |
+| `BOT_PROXY_URL`           | HTTP/SOCKS proxy for Bot API (requires `aiohttp-socks`) |
 | `BOT_API_TIMEOUT`         | Bot API request timeout in seconds (default 60) |
 | `MAX_MESSAGES_PER_SOURCE` | Max messages fetched per source (default 30) |
 | `MIN_IMPORTANCE_SCORE`    | Min AI score to include in digest (default 5) |
