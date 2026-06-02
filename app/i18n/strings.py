@@ -5,12 +5,26 @@ STRINGS: dict[str, dict[str, str]] = {
             "Персональные AI-сводки из ваших Telegram-каналов.\n\n"
             "<b>Шаг 1 из 5</b> — выберите язык:"
         ),
-        "step_connect": (
+        "step_connect_qr": (
             "<b>Шаг 2 из 5</b> — подключите Telegram\n\n"
-            "Нужен доступ к <b>вашим</b> подпискам (только для чтения каналов).\n\n"
-            "Нажмите кнопку ниже и выберите «Поделиться контактом» — "
-            "номер подставится автоматически."
+            "Сканируйте QR-код на фото ниже (рекомендуется).\n"
+            "Код из SMS через прокси часто не срабатывает."
         ),
+        "step_connect_phone": (
+            "<b>Шаг 2 из 5</b> — вход по номеру\n\n"
+            "Нажмите «Поделиться номером» внизу чата."
+        ),
+        "step_qr_caption": (
+            "Telegram → <b>Настройки</b> → <b>Устройства</b> → "
+            "<b>Подключить устройство</b> → сканируйте этот QR.\n\n"
+            "После сканирования бот продолжит автоматически."
+        ),
+        "qr_scan_hint": "Сканируйте QR на фото выше. Если истёк — «Обновить QR».",
+        "qr_failed": "❌ Не удалось запустить QR-вход. Попробуйте «Обновить QR».",
+        "btn_refresh_qr": "🔄 Обновить QR",
+        "btn_login_by_phone": "📱 Войти по номеру (запасной)",
+        "step_2fa_password": "Введите пароль двухфакторной аутентификации Telegram:",
+        "share_phone_hint": "Нажмите «Поделиться номером»",
         "step_code": (
             "<b>Шаг 2 из 5</b> — код из Telegram\n\n"
             "Отправьте <b>только цифры</b> из последнего сообщения Telegram "
@@ -108,12 +122,26 @@ STRINGS: dict[str, dict[str, str]] = {
             "Personal AI digests from your Telegram channels.\n\n"
             "<b>Step 1 of 5</b> — choose your language:"
         ),
-        "step_connect": (
+        "step_connect_qr": (
             "<b>Step 2 of 5</b> — connect Telegram\n\n"
-            "We need access to <b>your</b> subscriptions (read-only).\n\n"
-            "Tap the button below and choose «Share contact» — "
-            "your number will be filled in automatically."
+            "Scan the QR code in the photo below (recommended).\n"
+            "SMS codes often fail through a proxy."
         ),
+        "step_connect_phone": (
+            "<b>Step 2 of 5</b> — login by phone\n\n"
+            "Tap «Share phone number» at the bottom."
+        ),
+        "step_qr_caption": (
+            "Telegram → <b>Settings</b> → <b>Devices</b> → "
+            "<b>Link Desktop Device</b> → scan this QR.\n\n"
+            "The bot will continue automatically after scanning."
+        ),
+        "qr_scan_hint": "Scan the QR in the photo above. If expired — tap «Refresh QR».",
+        "qr_failed": "❌ Could not start QR login. Try «Refresh QR».",
+        "btn_refresh_qr": "🔄 Refresh QR",
+        "btn_login_by_phone": "📱 Login by phone (fallback)",
+        "step_2fa_password": "Enter your Telegram 2FA password:",
+        "share_phone_hint": "Tap «Share phone number»",
         "step_code": (
             "<b>Step 2 of 5</b> — code from Telegram\n\n"
             "Send <b>digits only</b> from the latest Telegram message "

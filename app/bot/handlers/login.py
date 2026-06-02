@@ -4,15 +4,17 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.connect_step import hide_phone_keyboard, show_connect_step
-from app.bot.keyboards import code_keyboard
-from app.bot.screen import bind_screen, edit_screen, replace_screen
+from app.bot.connect_step import refresh_connect_qr, show_connect_step
+from app.bot.keyboards import code_keyboard, phone_request_keyboard
+from app.bot.login_complete import complete_telethon_session, hide_phone_keyboard
+from app.bot.screen import edit_screen, replace_screen
 from app.bot.states import LoginStates
 from app.config import get_settings
 from app.i18n import resolve_lang, t
 from app.repositories.user_repository import UserRepository
 from app.services.telethon_auth import (
     cancel_login,
+    cancel_qr_task,
     complete_login,
     get_pending_phone,
     is_plausible_phone,
@@ -25,39 +27,14 @@ from app.services.telethon_auth import (
 router = Router(name="login")
 
 
-async def _finish_login(
-    message: Message,
-    state: FSMContext,
-    session: AsyncSession,
-    lang: str,
-) -> None:
-    from app.bot.subscription_flow import show_channels_loading
-
-    data = await state.get_data()
-    chat_id = data.get("screen_chat_id")
-    msg_id = data.get("screen_message_id")
-    if chat_id and msg_id:
-        try:
-            screen = await message.bot.edit_message_text(
-                t(lang, "channels_loading"),
-                chat_id=chat_id,
-                message_id=msg_id,
-            )
-            await bind_screen(state, screen)
-        except TelegramBadRequest:
-            await replace_screen(message, state, t(lang, "channels_loading"), None)
-    await show_channels_loading(
-        message, state, session, lang, message.from_user.id, set()
-    )
-
-
 async def _advance_to_code_step(
     message: Message,
     state: FSMContext,
     lang: str,
     phone: str,
 ) -> None:
-    await state.update_data(login_phone=phone, login_code_pending=True)
+    cancel_qr_task(message.from_user.id)
+    await state.update_data(login_phone=phone)
     await state.set_state(LoginStates.waiting_code)
     await edit_screen(
         message,
@@ -86,6 +63,7 @@ async def _submit_phone(
     if data.get("login_in_progress"):
         return
 
+    cancel_qr_task(message.from_user.id)
     await state.update_data(login_in_progress=True)
     await hide_phone_keyboard(message)
     try:
@@ -110,6 +88,30 @@ async def _submit_phone(
     await _advance_to_code_step(message, state, lang, sent.phone)
 
 
+@router.callback_query(F.data == "auth:qr_refresh")
+async def cb_qr_refresh(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    lang = await resolve_lang(session, callback.from_user.id)
+    await callback.answer()
+    if callback.message:
+        await refresh_connect_qr(callback.message, state, lang)
+
+
+@router.callback_query(F.data == "auth:phone")
+async def cb_login_by_phone(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    lang = await resolve_lang(session, callback.from_user.id)
+    cancel_qr_task(callback.from_user.id)
+    await cancel_login(callback.from_user.id)
+    await callback.answer()
+    if not callback.message:
+        return
+    await state.set_state(LoginStates.waiting_phone)
+    await replace_screen(callback.message, state, t(lang, "step_connect_phone"), None)
+    await callback.message.answer(
+        t(lang, "share_phone_hint"),
+        reply_markup=phone_request_keyboard(lang),
+    )
+
+
 @router.callback_query(F.data == "auth:connect")
 async def cb_auth_connect(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
@@ -118,6 +120,12 @@ async def cb_auth_connect(callback: CallbackQuery, state: FSMContext, session: A
     await callback.answer()
     if callback.message:
         await show_connect_step(callback.message, state, lang)
+
+
+@router.message(LoginStates.waiting_qr, F.text)
+async def login_qr_hint(message: Message, session: AsyncSession) -> None:
+    lang = await resolve_lang(session, message.from_user.id)
+    await message.answer(t(lang, "qr_scan_hint"))
 
 
 @router.message(LoginStates.sending_code, F.text)
@@ -188,24 +196,12 @@ async def login_code(
             await state.set_state(LoginStates.waiting_2fa)
             await edit_screen(message, state, t(lang, "step_2fa"), code_keyboard(lang))
             return
-        if "new code was sent" in msg.lower():
-            await edit_screen(
-                message,
-                state,
-                t(lang, "step_code", phone=phone) + "\n\n" + t(lang, "code_use_latest"),
-                code_keyboard(lang),
-            )
-        elif "expired" in msg.lower() and "share" in msg.lower():
-            await show_connect_step(message, state, lang)
         await message.answer(f"❌ {msg}")
         return
 
-    await UserRepository(session).save_telethon_session(
-        message.from_user.id, session_string, phone
+    await complete_telethon_session(
+        message, state, session, lang, session_string, phone
     )
-    await session.commit()
-    await state.set_state(None)
-    await _finish_login(message, state, session, lang)
 
 
 @router.message(LoginStates.waiting_2fa, F.text)
@@ -216,7 +212,7 @@ async def login_2fa(
 ) -> None:
     lang = await resolve_lang(session, message.from_user.id)
     data = await state.get_data()
-    phone = data.get("login_phone") or get_pending_phone(message.from_user.id)
+    phone = data.get("login_phone") or get_pending_phone(message.from_user.id) or ""
     settings = get_settings()
 
     try:
@@ -230,12 +226,9 @@ async def login_2fa(
         await message.answer(f"❌ {exc}")
         return
 
-    await UserRepository(session).save_telethon_session(
-        message.from_user.id, session_string, phone or ""
+    await complete_telethon_session(
+        message, state, session, lang, session_string, phone
     )
-    await session.commit()
-    await state.set_state(None)
-    await _finish_login(message, state, session, lang)
 
 
 @router.callback_query(F.data == "auth:resend")
@@ -261,8 +254,6 @@ async def cb_auth_resend(callback: CallbackQuery, state: FSMContext, session: As
         )
     except ValueError as exc:
         await callback.answer(str(exc), show_alert=True)
-        if "share" in str(exc).lower() and callback.message:
-            await show_connect_step(callback.message, state, lang)
 
 
 @router.callback_query(F.data == "auth:disconnect")

@@ -1,6 +1,7 @@
 import asyncio
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from telethon import TelegramClient
 from telethon.errors import (
@@ -28,12 +29,15 @@ class CodeSent:
 @dataclass
 class PendingLogin:
     client: TelegramClient
-    phone: str
-    phone_code_hash: str
+    phone: str = ""
+    phone_code_hash: str = ""
+    mode: str = "phone"
+    qr_login: Any = field(default=None, repr=False)
 
 
 _pending: dict[int, PendingLogin] = {}
 _login_locks: dict[int, asyncio.Lock] = {}
+_qr_tasks: dict[int, asyncio.Task] = {}
 
 
 def normalize_phone(raw: str) -> str:
@@ -46,7 +50,6 @@ def normalize_phone(raw: str) -> str:
 
 
 def telethon_phone(raw: str) -> str:
-    """Phone key must match Telethon's internal format after send_code_request."""
     normalized = normalize_phone(raw)
     return tg_parse_phone(normalized) or normalized
 
@@ -73,11 +76,6 @@ def _lock(telegram_id: int) -> asyncio.Lock:
     return _login_locks[telegram_id]
 
 
-async def _ensure_connected(client: TelegramClient, settings: Settings) -> None:
-    if not client.is_connected():
-        await connect_telethon(client, settings)
-
-
 async def _create_client(settings: Settings) -> TelegramClient:
     client = TelegramClient(
         StringSession(),
@@ -97,7 +95,52 @@ async def _send_code(client: TelegramClient, phone: str) -> CodeSent:
     return CodeSent(phone=telethon_phone, phone_code_hash=sent.phone_code_hash)
 
 
+def cancel_qr_task(telegram_id: int) -> None:
+    task = _qr_tasks.pop(telegram_id, None)
+    if task and not task.done():
+        task.cancel()
+
+
+async def start_qr_login(telegram_id: int, settings: Settings) -> str:
+    async with _lock(telegram_id):
+        await cancel_login(telegram_id)
+        client = await _create_client(settings)
+        qr = await client.qr_login()
+        _pending[telegram_id] = PendingLogin(client=client, mode="qr", qr_login=qr)
+        logger.info("login_qr_started", telegram_id=telegram_id)
+        return qr.url
+
+
+async def wait_qr_login(telegram_id: int, timeout: float = 180) -> str:
+    pending = _pending.get(telegram_id)
+    if not pending or pending.mode != "qr" or not pending.qr_login:
+        raise ValueError("QR login session expired. Open step 2 again.")
+
+    async with _lock(telegram_id):
+        try:
+            await asyncio.wait_for(pending.qr_login.wait(), timeout=timeout)
+        except SessionPasswordNeededError:
+            raise ValueError("2FA_REQUIRED")
+        except asyncio.TimeoutError as exc:
+            raise ValueError("QR login timed out. Refresh QR and try again.") from exc
+
+        if not await pending.client.is_user_authorized():
+            raise ValueError("QR authorization failed")
+
+        session_string = pending.client.session.save()
+        _pending.pop(telegram_id, None)
+        await pending.client.disconnect()
+        logger.info("login_qr_completed", telegram_id=telegram_id)
+        return session_string
+
+
+async def refresh_qr_login(telegram_id: int, settings: Settings) -> str:
+    cancel_qr_task(telegram_id)
+    return await start_qr_login(telegram_id, settings)
+
+
 async def start_login(telegram_id: int, phone: str, settings: Settings) -> CodeSent:
+    cancel_qr_task(telegram_id)
     parsed = telethon_phone(phone)
     if not is_plausible_phone(parsed):
         raise ValueError("Invalid phone number. Use format +79001234567")
@@ -115,28 +158,27 @@ async def start_login(telegram_id: int, phone: str, settings: Settings) -> CodeS
             client=client,
             phone=result.phone,
             phone_code_hash=result.phone_code_hash,
+            mode="phone",
         )
         logger.info(
             "login_code_sent",
             telegram_id=telegram_id,
             phone=mask_phone(result.phone),
             hash_prefix=result.phone_code_hash[:8],
+            connected=client.is_connected(),
         )
         return result
 
 
 async def resend_login_code(telegram_id: int, settings: Settings) -> CodeSent:
     pending = _pending.get(telegram_id)
-    if not pending:
-        raise ValueError("Login session expired. Share your phone again.")
+    if not pending or pending.mode != "phone":
+        raise ValueError("Login session expired. Open step 2 again.")
 
     async with _lock(telegram_id):
-        await _ensure_connected(pending.client, settings)
-        try:
-            result = await _send_code(pending.client, pending.phone)
-        except PhoneCodeExpiredError:
-            result = await _send_code(pending.client, pending.phone)
-
+        if not pending.client.is_connected():
+            await connect_telethon(pending.client, settings)
+        result = await _send_code(pending.client, pending.phone)
         pending.phone = result.phone
         pending.phone_code_hash = result.phone_code_hash
         logger.info("login_code_resent", telegram_id=telegram_id)
@@ -152,40 +194,66 @@ async def complete_login(
 ) -> str:
     pending = _pending.get(telegram_id)
     if not pending:
-        raise ValueError("Login session expired. Share your phone again.")
+        raise ValueError("Login session expired. Open step 2 again.")
 
     async with _lock(telegram_id):
         client = pending.client
-        await _ensure_connected(client, settings)
 
-        try:
-            if password:
-                await client.sign_in(password=password)
-            else:
-                code_digits = normalize_code(code)
-                if not code_digits:
-                    raise ValueError("Enter the code from Telegram.")
-                await client.sign_in(
-                    pending.phone,
-                    code_digits,
-                    phone_code_hash=pending.phone_code_hash,
-                )
-        except SessionPasswordNeededError:
-            if password:
-                raise ValueError("Invalid 2FA password")
-            raise ValueError("2FA_REQUIRED")
-        except PhoneCodeInvalidError as exc:
-            raise ValueError("Invalid code. Check digits and try again.") from exc
-        except PhoneCodeExpiredError as exc:
-            logger.warning("login_code_expired", telegram_id=telegram_id)
+        if password:
+            if not client.is_connected():
+                await connect_telethon(client, settings)
             try:
+                await client.sign_in(password=password)
+            except SessionPasswordNeededError:
+                raise ValueError("Invalid 2FA password")
+        elif pending.mode != "phone":
+            raise ValueError("Login session expired. Open step 2 again.")
+        else:
+            code_digits = normalize_code(code)
+            if not code_digits:
+                raise ValueError("Enter the code from Telegram.")
+
+            if not client.is_connected():
+                logger.warning(
+                    "login_disconnected_before_sign_in",
+                    telegram_id=telegram_id,
+                )
+                await connect_telethon(client, settings)
                 fresh = await _send_code(client, pending.phone)
                 pending.phone = fresh.phone
                 pending.phone_code_hash = fresh.phone_code_hash
-            except Exception:
-                await cancel_login(telegram_id)
-                raise ValueError("Code expired. Share your phone again.") from exc
-            raise ValueError("Code expired. A new code was sent — enter the latest one.") from exc
+                raise ValueError(
+                    "Connection was reset. A new code was sent — enter the latest digits."
+                )
+
+            live_hash = client._phone_code_hash.get(pending.phone) or pending.phone_code_hash
+            logger.info(
+                "sign_in_attempt",
+                telegram_id=telegram_id,
+                phone=mask_phone(pending.phone),
+                hash_prefix=(live_hash or "")[:8],
+                connected=client.is_connected(),
+            )
+
+            try:
+                await client.sign_in(
+                    pending.phone,
+                    code_digits,
+                    phone_code_hash=live_hash,
+                )
+            except SessionPasswordNeededError:
+                raise ValueError("2FA_REQUIRED")
+            except PhoneCodeInvalidError as exc:
+                raise ValueError("Invalid code. Check digits and try again.") from exc
+            except PhoneCodeExpiredError as exc:
+                logger.warning(
+                    "login_code_expired",
+                    telegram_id=telegram_id,
+                    hash_keys=list(client._phone_code_hash.keys()),
+                )
+                raise ValueError(
+                    "Code expired. Scan the QR on step 2 again or tap «Resend code»."
+                ) from exc
 
         if not await client.is_user_authorized():
             raise ValueError("Authorization failed")
@@ -199,10 +267,11 @@ async def complete_login(
 
 def get_pending_phone(telegram_id: int) -> str | None:
     pending = _pending.get(telegram_id)
-    return pending.phone if pending else None
+    return pending.phone if pending and pending.mode == "phone" else None
 
 
 async def cancel_login(telegram_id: int) -> None:
+    cancel_qr_task(telegram_id)
     pending = _pending.pop(telegram_id, None)
     if pending:
         await pending.client.disconnect()

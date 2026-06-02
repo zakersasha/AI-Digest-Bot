@@ -25,6 +25,17 @@ CB_ACTION_MENU = "act:menu"
 CB_AUTH_CONNECT = "auth:connect"
 CB_AUTH_DISCONNECT = "auth:disconnect"
 CB_AUTH_RESEND = "auth:resend"
+CB_AUTH_QR_REFRESH = "auth:qr_refresh"
+CB_AUTH_PHONE = "auth:phone"
+
+
+def connect_login_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "btn_refresh_qr"), callback_data=CB_AUTH_QR_REFRESH)],
+            [InlineKeyboardButton(text=t(lang, "btn_login_by_phone"), callback_data=CB_AUTH_PHONE)],
+        ]
+    )
 
 
 def phone_request_keyboard(lang: str) -> ReplyKeyboardMarkup:

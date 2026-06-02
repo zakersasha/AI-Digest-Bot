@@ -6,6 +6,7 @@ class OnboardingStates(StatesGroup):
 
 
 class LoginStates(StatesGroup):
+    waiting_qr = State()
     waiting_phone = State()
     sending_code = State()
     waiting_code = State()
