@@ -12,9 +12,6 @@ from app.bot.keyboards import (
     CB_ACTION_MENU,
     CB_ACTION_SCHEDULE,
     CB_ACTION_SETUP,
-    CB_CH_DONE,
-    CB_CH_PAGE,
-    CB_CH_REFRESH,
     CB_FREQ_BACK,
     CB_LANG_EN,
     CB_LANG_RU,
@@ -27,16 +24,8 @@ from app.bot.keyboards import (
     time_keyboard,
 )
 from app.bot.screen import edit_from_callback, open_screen
+from app.bot.sources_flow import show_sources_manage, show_sources_onboarding
 from app.bot.states import OnboardingStates
-from app.bot.subscription_flow import (
-    channels_from_state,
-    get_selected,
-    proceed_after_language,
-    render_channels_page,
-    set_selected,
-    show_channels_loading,
-    show_connect_step,
-)
 from app.config import get_settings
 from app.i18n import DEFAULT_LANG, frequency_label, resolve_lang, t
 from app.repositories.source_repository import SourceRepository
@@ -82,8 +71,6 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
         await open_screen(message, state, t(lang, "main_menu"), main_menu_keyboard(lang))
         return
 
-    await set_selected(state, await SourceRepository(session).active_usernames(user.id))
-    tid = message.from_user.id
     if user.delivery_hour is not None and user.digest_frequency:
         await open_screen(
             message,
@@ -101,10 +88,8 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
         )
     elif await SourceRepository(session).count_active(user.id) > 0:
         await open_screen(message, state, t(lang, "step_frequency"), frequency_keyboard(lang))
-    elif user.telethon_session_encrypted:
-        await show_channels_loading(message, state, session, lang, tid, await get_selected(state))
     else:
-        await show_connect_step(message, state, lang)
+        await show_sources_onboarding(message, state, lang)
 
 
 @router.callback_query(F.data.in_({CB_LANG_RU, CB_LANG_EN}))
@@ -112,87 +97,9 @@ async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSM
     lang = callback.data.split(":")[1]
     await UserRepository(session).set_language(callback.from_user.id, lang)
     await session.commit()
-    await proceed_after_language(callback, state, session, lang)
-
-
-@router.callback_query(F.data.startswith("ch:toggle:"))
-async def cb_toggle_channel(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    lang = await resolve_lang(session, callback.from_user.id)
-    key = callback.data.split(":")[2]
-    data = await state.get_data()
-    subscriptions = channels_from_state(data)
-    username = next(
-        (ch.username for ch in subscriptions if ch.username.lstrip("@").lower() == key),
-        f"@{key}",
-    )
-    selected = await get_selected(state)
-    if username in selected:
-        selected.remove(username)
-    else:
-        selected.add(username)
-    await set_selected(state, selected)
     await callback.answer()
-    await render_channels_page(callback, state, lang, data.get("ch_page", 0))
-
-
-@router.callback_query(F.data == "ch:noop")
-async def cb_channels_noop(callback: CallbackQuery) -> None:
-    await callback.answer()
-
-
-@router.callback_query(F.data.startswith(f"{CB_CH_PAGE}:"))
-async def cb_channels_page(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    lang = await resolve_lang(session, callback.from_user.id)
-    page = int(callback.data.split(":")[1])
-    await callback.answer()
-    await render_channels_page(callback, state, lang, page)
-
-
-@router.callback_query(F.data == CB_CH_REFRESH)
-async def cb_channels_refresh(
-    callback: CallbackQuery,
-    state: FSMContext,
-    session: AsyncSession,
-) -> None:
-    lang = await resolve_lang(session, callback.from_user.id)
-    selected = await get_selected(state)
-    await callback.answer(t(lang, "channels_refreshed"))
     if callback.message:
-        await show_channels_loading(
-            callback.message, state, session, lang, callback.from_user.id, selected
-        )
-
-
-@router.callback_query(F.data == CB_CH_DONE)
-async def cb_channels_done(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    lang = await resolve_lang(session, callback.from_user.id)
-    selected = await get_selected(state)
-    if not selected:
-        await callback.answer(t(lang, "pick_channel_first"), show_alert=True)
-        return
-
-    data = await state.get_data()
-    subscriptions = channels_from_state(data)
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if not user:
-        await callback.answer()
-        return
-
-    await SourceRepository(session).sync_subscriptions(user.id, subscriptions, selected)
-    await session.commit()
-
-    onboarding = await state.get_state() == OnboardingStates.picking_channels.state
-    await callback.answer(t(lang, "channels_saved", count=len(selected)))
-
-    if onboarding:
-        await state.clear()
-        await state.update_data(
-            subscriptions=data.get("subscriptions"),
-            selected_usernames=list(selected),
-        )
-        await edit_from_callback(callback, state, t(lang, "step_frequency"), frequency_keyboard(lang))
-    else:
-        await edit_from_callback(callback, state, t(lang, "main_menu"), main_menu_keyboard(lang))
+        await show_sources_onboarding(callback.message, state, lang)
 
 
 @router.callback_query(F.data.startswith("freq:"))
@@ -220,18 +127,8 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
 async def cb_freq_back(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     await callback.answer()
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if user:
-        await set_selected(state, await SourceRepository(session).active_usernames(user.id))
-    await state.set_state(OnboardingStates.picking_channels)
     if callback.message:
-        data = await state.get_data()
-        if data.get("subscriptions"):
-            await render_channels_page(callback, state, lang, data.get("ch_page", 0))
-        else:
-            await show_channels_loading(
-                callback.message, state, session, lang, callback.from_user.id, await get_selected(state)
-            )
+        await show_sources_onboarding(callback.message, state, lang)
 
 
 @router.callback_query(F.data.startswith("time:"))
@@ -273,6 +170,7 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
 @router.callback_query(F.data == CB_ACTION_MENU)
 async def cb_main_menu(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
+    await state.clear()
     await callback.answer()
     await edit_from_callback(callback, state, t(lang, "main_menu"), main_menu_keyboard(lang))
 
@@ -280,14 +178,10 @@ async def cb_main_menu(callback: CallbackQuery, session: AsyncSession, state: FS
 @router.callback_query(F.data == CB_ACTION_CHANNELS)
 async def cb_menu_channels(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if user:
-        await set_selected(state, await SourceRepository(session).active_usernames(user.id))
-    await state.set_state(OnboardingStates.picking_channels)
     await callback.answer()
     if callback.message:
-        await show_channels_loading(
-            callback.message, state, session, lang, callback.from_user.id, await get_selected(state)
+        await show_sources_manage(
+            callback.message, state, session, lang, callback.from_user.id
         )
 
 
@@ -321,14 +215,8 @@ async def cb_menu_setup(callback: CallbackQuery, session: AsyncSession, state: F
     await UserRepository(session).reset_onboarding(callback.from_user.id)
     await session.commit()
     await callback.answer()
-    await set_selected(state, set())
-    await state.set_state(OnboardingStates.picking_channels)
     if callback.message:
-        user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-        if user and user.telethon_session_encrypted:
-            await show_channels_loading(callback.message, state, session, lang, callback.from_user.id, set())
-        else:
-            await show_connect_step(callback.message, state, lang)
+        await show_sources_onboarding(callback.message, state, lang)
 
 
 @router.callback_query(F.data == CB_ACTION_DIGEST)
@@ -342,9 +230,6 @@ async def cb_digest_now(
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user or not user.onboarding_complete or not user.digest_frequency:
         await callback.answer(t(lang, "pick_channel_first"), show_alert=True)
-        return
-    if not user.telethon_session_encrypted:
-        await callback.answer(t(lang, "telegram_not_linked"), show_alert=True)
         return
 
     await callback.answer()

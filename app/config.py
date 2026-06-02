@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     telegram_api_id: int = Field(alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field(alias="TELEGRAM_API_HASH")
     telegram_session_string: str = Field(default="", alias="TELEGRAM_SESSION_STRING")
-    session_encryption_key: str = Field(alias="SESSION_ENCRYPTION_KEY")
+    session_encryption_key: str = Field(default="", alias="SESSION_ENCRYPTION_KEY")
     telegram_proxy_url: str | None = Field(default=None, alias="TELEGRAM_PROXY_URL")
     telethon_connect_timeout: float = Field(default=45.0, alias="TELETHON_CONNECT_TIMEOUT")
 

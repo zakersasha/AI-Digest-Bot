@@ -32,10 +32,10 @@ async def run_scheduled_tick(bot: Bot, settings: Settings) -> None:
         user_repo = UserRepository(session)
         users = await user_repo.list_scheduled_users()
 
-        for user in users:
-            if not user.telethon_session_encrypted:
-                continue
+        if not settings.telegram_session_string:
+            return
 
+        for user in users:
             now = user_now(user)
             if not is_digest_due(user, now):
                 continue

@@ -2,12 +2,6 @@ from aiogram.fsm.state import State, StatesGroup
 
 
 class OnboardingStates(StatesGroup):
-    picking_channels = State()
-
-
-class LoginStates(StatesGroup):
-    waiting_qr = State()
-    waiting_phone = State()
-    sending_code = State()
-    waiting_code = State()
-    waiting_2fa = State()
+    entering_sources = State()
+    managing_sources = State()
+    waiting_add_source = State()

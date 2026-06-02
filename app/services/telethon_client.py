@@ -60,19 +60,20 @@ async def connect_telethon(client: TelegramClient, settings: Settings) -> None:
 
 
 @asynccontextmanager
-async def user_telethon_client(
-    session_string: str,
-    settings: Settings,
-) -> AsyncIterator[TelethonService]:
+async def shared_telethon_client(settings: Settings) -> AsyncIterator[TelethonService]:
+    """Reader session from TELEGRAM_SESSION_STRING (server-side, for fetching public channels)."""
+    if not settings.telegram_session_string:
+        raise ValueError("TELEGRAM_SESSION_STRING is not configured")
+
     client = TelegramClient(
-        StringSession(session_string),
+        StringSession(settings.telegram_session_string),
         settings.telegram_api_id,
         settings.telegram_api_hash,
         **_client_kwargs(settings),
     )
     await connect_telethon(client, settings)
     if not await client.is_user_authorized():
-        raise ValueError("Telegram session is not authorized")
+        raise ValueError("Telegram reader session is not authorized")
 
     service = TelethonService(client, settings.max_messages_per_source)
     try:

@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.source import Source
-from app.services.telethon_service import SubscribedChannel
+from app.utils.links import normalize_source
 
 
 class SourceRepository:
@@ -16,44 +16,59 @@ class SourceRepository:
         return list(result.scalars().all())
 
     async def list_all_for_user(self, user_id: int) -> list[Source]:
-        result = await self._session.execute(select(Source).where(Source.user_id == user_id))
+        result = await self._session.execute(
+            select(Source)
+            .where(Source.user_id == user_id, Source.is_active.is_(True))
+            .order_by(Source.id)
+        )
         return list(result.scalars().all())
 
-    async def sync_subscriptions(
-        self,
-        user_id: int,
-        subscriptions: list[SubscribedChannel],
-        selected_usernames: set[str],
-    ) -> None:
-        by_username = {item.username: item for item in subscriptions}
-        result = await self._session.execute(select(Source).where(Source.user_id == user_id))
-        existing = {source.telegram_source: source for source in result.scalars().all()}
+    async def add_source(self, user_id: int, raw_username: str) -> Source | None:
+        try:
+            username = normalize_source(raw_username)
+        except ValueError:
+            return None
 
-        for username, channel in by_username.items():
-            is_selected = username in selected_usernames
-            source = existing.get(username)
-            if source:
-                source.is_active = is_selected
-                source.title = channel.title
-                source.telegram_peer_id = channel.peer_id
-            elif is_selected:
-                self._session.add(
-                    Source(
-                        user_id=user_id,
-                        telegram_source=username,
-                        title=channel.title,
-                        telegram_peer_id=channel.peer_id,
-                        is_active=True,
-                    )
-                )
+        result = await self._session.execute(
+            select(Source).where(
+                Source.user_id == user_id,
+                Source.telegram_source == username,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.is_active = True
+            await self._session.flush()
+            return existing
 
-        for username, source in existing.items():
-            if username not in by_username:
-                source.is_active = False
-            elif username not in selected_usernames:
-                source.is_active = False
-
+        source = Source(
+            user_id=user_id,
+            telegram_source=username,
+            title=username,
+            is_active=True,
+        )
+        self._session.add(source)
         await self._session.flush()
+        return source
+
+    async def remove_source(self, user_id: int, raw_username: str) -> bool:
+        try:
+            username = normalize_source(raw_username)
+        except ValueError:
+            return False
+
+        result = await self._session.execute(
+            select(Source).where(
+                Source.user_id == user_id,
+                Source.telegram_source == username,
+            )
+        )
+        source = result.scalar_one_or_none()
+        if not source:
+            return False
+        source.is_active = False
+        await self._session.flush()
+        return True
 
     async def count_active(self, user_id: int) -> int:
         return len(await self.list_active_for_user(user_id))

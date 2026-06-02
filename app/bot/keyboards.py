@@ -1,20 +1,14 @@
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-)
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.i18n import t
-from app.services.telethon_service import SubscribedChannel
-
-CHANNELS_PER_PAGE = 7
+from app.models.source import Source
+from app.utils.links import channel_username
 
 CB_LANG_RU = "lang:ru"
 CB_LANG_EN = "lang:en"
-CB_CH_DONE = "ch:done"
-CB_CH_REFRESH = "ch:refresh"
-CB_CH_PAGE = "ch:page"
+CB_SRC_DONE = "src:done"
+CB_SRC_ADD = "src:add"
+CB_SRC_REMOVE = "src:rm"
 CB_FREQ_BACK = "freq:back"
 CB_TIME_BACK = "time:back"
 CB_ACTION_CHANNELS = "act:channels"
@@ -22,46 +16,6 @@ CB_ACTION_SCHEDULE = "act:schedule"
 CB_ACTION_DIGEST = "act:digest"
 CB_ACTION_SETUP = "act:setup"
 CB_ACTION_MENU = "act:menu"
-CB_AUTH_CONNECT = "auth:connect"
-CB_AUTH_DISCONNECT = "auth:disconnect"
-CB_AUTH_RESEND = "auth:resend"
-CB_AUTH_QR_REFRESH = "auth:qr_refresh"
-CB_AUTH_PHONE = "auth:phone"
-
-
-def connect_login_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "btn_refresh_qr"), callback_data=CB_AUTH_QR_REFRESH)],
-            [InlineKeyboardButton(text=t(lang, "btn_login_by_phone"), callback_data=CB_AUTH_PHONE)],
-        ]
-    )
-
-
-def phone_request_keyboard(lang: str) -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=t(lang, "btn_share_phone"), request_contact=True)],
-        ],
-        resize_keyboard=True,
-        one_time_keyboard=True,
-    )
-
-
-def code_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "btn_resend_code"), callback_data=CB_AUTH_RESEND)],
-        ]
-    )
-
-
-def linked_account_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "btn_disconnect"), callback_data=CB_AUTH_DISCONNECT)],
-        ]
-    )
 
 
 def language_keyboard() -> InlineKeyboardMarkup:
@@ -75,53 +29,31 @@ def language_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _username_key(username: str) -> str:
-    return username.lstrip("@").lower()
-
-
-def subscriptions_keyboard(
-    subscriptions: list[SubscribedChannel],
-    selected: set[str],
+def sources_keyboard(
     lang: str,
-    page: int = 0,
+    sources: list[Source] | None = None,
+    *,
+    onboarding: bool,
 ) -> InlineKeyboardMarkup:
-    total_pages = max(1, (len(subscriptions) + CHANNELS_PER_PAGE - 1) // CHANNELS_PER_PAGE)
-    page = max(0, min(page, total_pages - 1))
-    start = page * CHANNELS_PER_PAGE
-    chunk = subscriptions[start : start + CHANNELS_PER_PAGE]
-
     rows: list[list[InlineKeyboardButton]] = []
-    for channel in chunk:
-        mark = "✅" if channel.username in selected else "⬜"
-        title = channel.title[:28] + "…" if len(channel.title) > 28 else channel.title
+
+    for source in sources or []:
+        key = channel_username(source.telegram_source)
         rows.append(
             [
                 InlineKeyboardButton(
-                    text=f"{mark} {title}",
-                    callback_data=f"ch:toggle:{_username_key(channel.username)}",
+                    text=f"🗑 {source.telegram_source}",
+                    callback_data=f"{CB_SRC_REMOVE}:{key}",
                 )
             ]
         )
 
-    if total_pages > 1:
-        nav: list[InlineKeyboardButton] = []
-        if page > 0:
-            nav.append(
-                InlineKeyboardButton(text="◀️", callback_data=f"{CB_CH_PAGE}:{page - 1}")
-            )
-        nav.append(InlineKeyboardButton(text=f"{page + 1}/{total_pages}", callback_data="ch:noop"))
-        if page < total_pages - 1:
-            nav.append(
-                InlineKeyboardButton(text="▶️", callback_data=f"{CB_CH_PAGE}:{page + 1}")
-            )
-        rows.append(nav)
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_add_source"), callback_data=CB_SRC_ADD)])
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_continue"), callback_data=CB_SRC_DONE)])
 
-    rows.append(
-        [
-            InlineKeyboardButton(text="🔄", callback_data=CB_CH_REFRESH),
-            InlineKeyboardButton(text=t(lang, "btn_continue"), callback_data=CB_CH_DONE),
-        ]
-    )
+    if not onboarding:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_menu"), callback_data=CB_ACTION_MENU)])
+
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

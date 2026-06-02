@@ -121,7 +121,6 @@ class UserRepository:
                 User.digest_frequency.isnot(None),
                 User.delivery_hour.isnot(None),
                 User.language.isnot(None),
-                User.telethon_session_encrypted.isnot(None),
             )
         )
         return list(result.scalars().all())
