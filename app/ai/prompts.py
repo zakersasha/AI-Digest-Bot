@@ -24,14 +24,20 @@ Ignore:
 - greetings
 - low-value chatter
 
-Format the digest like this:
-1. <highlight>
-2. <highlight>
-3. <highlight>
+Format the response in Telegram Markdown (NOT HTML):
+- Use *bold* for section titles and emphasis
+- Numbered highlights on separate lines: *1.* First highlight
+- End with section *Key trends:* and bullet lines starting with •
 
-Key trends:
-- <trend>
-- <trend>
+Example structure:
+*1.* OpenAI released a new model...
+*2.* Python 3.13 beta announced...
+
+*Key trends:*
+• AI tooling growth
+• Increased GPU demand
+
+Do not use # headers or HTML tags. Escape nothing unless required.
 
 Messages:
 {messages}"""

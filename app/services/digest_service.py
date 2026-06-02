@@ -36,7 +36,7 @@ class DigestService:
     async def generate(self, user_id: int, timeframe: str) -> str:
         sources = await self._source_repo.list_active_for_user(user_id)
         if not sources:
-            raise ValueError("No active sources. Add channels with /add first.")
+            raise ValueError("No active sources. Add channels via ➕ Add source first.")
 
         delta = parse_timeframe(timeframe)
         since = datetime.now(tz=UTC) - delta
@@ -82,8 +82,9 @@ class DigestService:
                 f"AI provider ({self._ai.name}) failed while generating digest. Try again later."
             ) from exc
 
-        header = f"🔥 AI Digest ({timeframe_label(timeframe)})\n\n"
-        content = header + digest_body
+        label = timeframe_label(timeframe)
+        header = f"🔥 *AI Digest* ({label})\n\n"
+        content = header + digest_body.strip()
 
         await self._digest_repo.create(user_id, timeframe, content)
         await self._session.commit()

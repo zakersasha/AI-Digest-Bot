@@ -85,15 +85,17 @@ Local Postgres URL example:
 DATABASE_URL=postgresql+asyncpg://digest:digest@localhost:5432/digest_bot
 ```
 
-## Bot commands
+## Bot navigation
 
-| Command   | Description                          |
-|-----------|--------------------------------------|
-| `/start`  | Welcome message and menu             |
-| `/add`    | Add a public channel or group        |
-| `/sources`| List, toggle, and remove sources     |
-| `/digest` | Pick timeframe and generate digest   |
-| `/help`   | Help text                            |
+Use the **reply keyboard** (main menu buttons) for everyday actions. Inline screens include **◀️ Back to menu**. Commands are a fallback.
+
+| Button / Command | Action |
+|------------------|--------|
+| `/start` | Welcome (first time) + main menu |
+| ➕ Add source | Add `@channel`, `t.me/name`, or full link |
+| 📋 My sources | Toggle / remove sources |
+| 🔥 Digest | Pick 1h–12h → Markdown digest |
+| ❓ Help | Short help + back button |
 
 ## User flow
 

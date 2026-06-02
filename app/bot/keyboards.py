@@ -1,21 +1,42 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
+# Reply keyboard labels
+BTN_ADD = "➕ Add source"
+BTN_SOURCES = "📋 My sources"
+BTN_DIGEST = "🔥 Digest"
+BTN_HELP = "❓ Help"
+
 TIMEFRAMES = [
-    ("1h", "⏱ Last 1 hour"),
-    ("3h", "⏱ Last 3 hours"),
-    ("6h", "⏱ Last 6 hours"),
-    ("12h", "⏱ Last 12 hours"),
+    ("1h", "⏱ 1 hour"),
+    ("3h", "⏱ 3 hours"),
+    ("6h", "⏱ 6 hours"),
+    ("12h", "⏱ 12 hours"),
 ]
+
+CB_NAV_MENU = "nav:menu"
+CB_NAV_ADD = "nav:add"
+CB_NAV_SOURCES = "nav:sources"
+CB_NAV_DIGEST = "nav:digest"
+CB_NAV_HELP = "nav:help"
 
 
 def main_menu_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="/add"), KeyboardButton(text="/sources")],
-            [KeyboardButton(text="/digest"), KeyboardButton(text="/help")],
+            [KeyboardButton(text=BTN_ADD), KeyboardButton(text=BTN_SOURCES)],
+            [KeyboardButton(text=BTN_DIGEST), KeyboardButton(text=BTN_HELP)],
         ],
         resize_keyboard=True,
+        is_persistent=True,
     )
+
+
+def back_button() -> InlineKeyboardButton:
+    return InlineKeyboardButton(text="◀️ Back to menu", callback_data=CB_NAV_MENU)
+
+
+def back_row() -> list[InlineKeyboardButton]:
+    return [back_button()]
 
 
 def timeframe_keyboard() -> InlineKeyboardMarkup:
@@ -23,7 +44,13 @@ def timeframe_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=label, callback_data=f"digest:{code}")
         for code, label in TIMEFRAMES
     ]
-    return InlineKeyboardMarkup(inline_keyboard=[buttons[:2], buttons[2:]])
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            buttons[:2],
+            buttons[2:],
+            back_row(),
+        ]
+    )
 
 
 def sources_keyboard(sources: list) -> InlineKeyboardMarkup:
@@ -38,13 +65,19 @@ def sources_keyboard(sources: list) -> InlineKeyboardMarkup:
                     callback_data=f"toggle:{source.id}",
                 ),
                 InlineKeyboardButton(
-                    text="🗑 Remove",
+                    text="🗑",
                     callback_data=f"remove:{source.id}",
                 ),
             ]
         )
-    if not rows:
-        rows.append(
-            [InlineKeyboardButton(text="➕ Add a channel", callback_data="add_hint")]
-        )
+    rows.append([InlineKeyboardButton(text="➕ Add source", callback_data=CB_NAV_ADD)])
+    rows.append(back_row())
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def add_source_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[back_row()])
+
+
+def help_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[back_row()])

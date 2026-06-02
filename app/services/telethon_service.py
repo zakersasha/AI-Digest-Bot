@@ -62,18 +62,24 @@ class TelethonService:
     @staticmethod
     def normalize_source(raw: str) -> str:
         text = raw.strip()
+
         if text.startswith("https://") or text.startswith("http://"):
             parsed = urlparse(text)
+            host = (parsed.netloc or "").lower().removeprefix("www.")
+            if host not in ("t.me", "telegram.me"):
+                raise ValueError("Use a t.me link or @username. Example: t.me/python")
             path = parsed.path.strip("/")
             if path.startswith("+"):
                 raise ValueError("Private invite links are not supported. Use public @username.")
-            if "/" in path:
-                path = path.split("/")[0]
-            text = path
+            text = path.split("/")[0].split("?")[0] if path else ""
+        elif re.match(r"^(?:t\.me|telegram\.me)/", text, re.IGNORECASE):
+            text = text.split("/", 1)[1].split("?")[0]
 
-        text = text.lstrip("@")
+        text = text.lstrip("@").strip()
+        if not text:
+            raise ValueError("Invalid channel username. Example: @ai_news or t.me/ai_news")
         if not _USERNAME_PATTERN.match(f"@{text}"):
-            raise ValueError("Invalid channel username. Example: @ai_news")
+            raise ValueError("Invalid channel username. Example: @ai_news or t.me/ai_news")
 
         return f"@{text.lower()}"
 

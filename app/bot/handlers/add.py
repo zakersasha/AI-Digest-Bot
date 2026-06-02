@@ -1,9 +1,10 @@
 from aiogram import F, Router
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from app.bot.keyboards import BTN_ADD, BTN_DIGEST, BTN_HELP, BTN_SOURCES, main_menu_keyboard
 from app.bot.states import AddSourceStates
+from app.bot.texts import MENU_PROMPT
 from app.repositories.user_repository import UserRepository
 from app.services.source_service import SourceService
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,18 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = Router(name="add")
 
 
-@router.message(Command("add"))
-async def cmd_add(message: Message, state: FSMContext) -> None:
-    await state.set_state(AddSourceStates.waiting_for_source)
-    await message.answer(
-        "Send a public channel or group:\n\n"
-        "Examples:\n"
-        "• @ai_news\n"
-        "• https://t.me/python"
-    )
-
-
-@router.message(AddSourceStates.waiting_for_source, F.text)
+@router.message(
+    AddSourceStates.waiting_for_source,
+    F.text,
+    ~F.text.in_({BTN_ADD, BTN_SOURCES, BTN_DIGEST, BTN_HELP}),
+)
 async def process_source_input(
     message: Message,
     state: FSMContext,
@@ -39,7 +33,9 @@ async def process_source_input(
         source = await source_service.add_source(user.id, message.text)
         await session.commit()
         title = source.title or source.telegram_source
-        await message.answer(f"✅ Added <b>{title}</b> ({source.telegram_source})")
+        await message.answer(
+            f"✅ Added <b>{title}</b> (<code>{source.telegram_source}</code>)",
+        )
     except ValueError as exc:
         await message.answer(f"❌ {exc}")
     except TimeoutError as exc:
@@ -48,3 +44,4 @@ async def process_source_input(
         await message.answer("❌ Failed to add source. Check the username and try again.")
     finally:
         await state.clear()
+        await message.answer(MENU_PROMPT, reply_markup=main_menu_keyboard())
