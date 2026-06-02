@@ -23,7 +23,8 @@ class SourceRepository:
         )
         return list(result.scalars().all())
 
-    async def add_source(self, user_id: int, raw_username: str) -> Source | None:
+    async def add_source(self, user_id: int, raw_username: str) -> str | None:
+        """Returns 'new', 'exists', or None if invalid."""
         try:
             username = normalize_source(raw_username)
         except ValueError:
@@ -37,9 +38,11 @@ class SourceRepository:
         )
         existing = result.scalar_one_or_none()
         if existing:
+            if existing.is_active:
+                return "exists"
             existing.is_active = True
             await self._session.flush()
-            return existing
+            return "new"
 
         source = Source(
             user_id=user_id,
@@ -49,7 +52,7 @@ class SourceRepository:
         )
         self._session.add(source)
         await self._session.flush()
-        return source
+        return "new"
 
     async def remove_source(self, user_id: int, raw_username: str) -> bool:
         try:

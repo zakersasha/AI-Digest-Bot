@@ -1,8 +1,10 @@
 from openai import AsyncOpenAI
 
 from app.ai.base import AIProvider, MessageScore
+from app.ai.context_limits import chars_for_tokens, fit_items_to_budget, truncate_text
 from app.ai.local_provider import _parse_score_response
 from app.ai.prompts import FINAL_DIGEST_PROMPT, MESSAGE_SCORING_PROMPT
+from app.config import get_settings
 from app.i18n import language_name
 from app.utils.logging import get_logger
 
@@ -28,11 +30,16 @@ class OpenAIProvider(AIProvider):
         return "openai"
 
     async def complete(self, prompt: str) -> str:
-        logger.info("ai_request", provider=self.name, model=self._model)
+        settings = get_settings()
+        max_prompt_chars = chars_for_tokens(settings.ai_max_context_tokens - 700)
+        prompt = truncate_text(prompt, max_prompt_chars)
+
+        logger.info("ai_request", provider=self.name, model=self._model, prompt_chars=len(prompt))
         response = await self._client.chat.completions.create(
             model=self._model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
+            max_tokens=min(700, settings.ai_max_context_tokens // 2),
         )
         content = response.choices[0].message.content or ""
         logger.info("ai_response", provider=self.name, chars=len(content))
@@ -46,10 +53,19 @@ class OpenAIProvider(AIProvider):
         raw = await self.complete(prompt)
         return _parse_score_response(raw)
 
-    async def generate_digest(self, messages: list[str], language: str) -> str:
+    async def generate_digest(
+        self,
+        messages: list[str],
+        language: str,
+        *,
+        max_chars: int | None = None,
+    ) -> str:
         if not messages:
             return ""
-        joined = "\n\n".join(f"---\n{msg}" for msg in messages)
+        settings = get_settings()
+        budget = max_chars or chars_for_tokens(settings.ai_digest_input_tokens)
+        trimmed = fit_items_to_budget(messages, budget)
+        joined = "\n\n".join(f"---\n{msg}" for msg in trimmed)
         prompt = FINAL_DIGEST_PROMPT.format(
             messages=joined,
             language_name=language_name(language),

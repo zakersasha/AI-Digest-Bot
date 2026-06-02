@@ -5,6 +5,7 @@ from openai import APIConnectionError, APITimeoutError, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
+from app.ai.context_limits import chars_for_tokens, fit_items_to_budget, truncate_text
 from app.config import Settings
 from app.i18n import frequency_label, t
 from app.repositories.digest_repository import DigestRepository
@@ -65,14 +66,29 @@ class DigestService:
         if not all_messages:
             raise ValueError(t(language, "no_messages", label=label))
 
+        max_to_score = self._settings.ai_max_messages_to_score
+        if len(all_messages) > max_to_score:
+            all_messages.sort(key=lambda m: m.date, reverse=True)
+            all_messages = all_messages[:max_to_score]
+            logger.info(
+                "messages_truncated_for_scoring",
+                user_id=user_id,
+                kept=max_to_score,
+            )
+
+        score_char_limit = self._settings.ai_score_message_max_chars
         scored_summaries: list[str] = []
         for msg in all_messages:
+            text = truncate_text(msg.text, score_char_limit)
+            if not text:
+                continue
             try:
-                result = await self._ai.score_message(msg.text, language)
+                result = await self._ai.score_message(text, language)
                 if result.score >= self._min_score:
+                    summary = truncate_text(result.summary, 280)
                     source_link = markdown_source_link(msg.source, msg.message_id)
                     scored_summaries.append(
-                        f"SUMMARY: {result.summary}\nSOURCE_LINK: {source_link}"
+                        f"SUMMARY: {summary}\nSOURCE_LINK: {source_link}"
                     )
             except (httpx.HTTPError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
                 logger.error("ai_score_failed", provider=self._ai.name, error=str(exc))
@@ -81,8 +97,22 @@ class DigestService:
         if not scored_summaries:
             raise ValueError(t(language, "no_important"))
 
+        max_items = self._settings.ai_max_digest_items
+        if len(scored_summaries) > max_items:
+            scored_summaries = scored_summaries[:max_items]
+
+        digest_budget = chars_for_tokens(self._settings.ai_digest_input_tokens)
+        scored_summaries = fit_items_to_budget(scored_summaries, digest_budget)
+
+        if not scored_summaries:
+            raise ValueError(t(language, "no_important"))
+
         try:
-            digest_body = await self._ai.generate_digest(scored_summaries, language)
+            digest_body = await self._ai.generate_digest(
+                scored_summaries,
+                language,
+                max_chars=digest_budget,
+            )
         except (httpx.HTTPError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
             logger.error("ai_digest_failed", provider=self._ai.name, error=str(exc))
             raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc

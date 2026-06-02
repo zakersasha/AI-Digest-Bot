@@ -18,7 +18,13 @@ class AIProvider(ABC):
         """Score message importance and return a 1-2 sentence summary."""
 
     @abstractmethod
-    async def generate_digest(self, messages: list[str], language: str) -> str:
+    async def generate_digest(
+        self,
+        messages: list[str],
+        language: str,
+        *,
+        max_chars: int | None = None,
+    ) -> str:
         """Generate a final digest from scored message summaries."""
 
     @property

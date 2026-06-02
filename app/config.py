@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_messages_per_source: int = Field(default=30, alias="MAX_MESSAGES_PER_SOURCE")
     min_importance_score: int = Field(default=5, alias="MIN_IMPORTANCE_SCORE")
+    ai_max_context_tokens: int = Field(default=2048, alias="AI_MAX_CONTEXT_TOKENS")
+    ai_digest_input_tokens: int = Field(default=900, alias="AI_DIGEST_INPUT_TOKENS")
+    ai_score_message_max_chars: int = Field(default=800, alias="AI_SCORE_MESSAGE_MAX_CHARS")
+    ai_max_messages_to_score: int = Field(default=25, alias="AI_MAX_MESSAGES_TO_SCORE")
+    ai_max_digest_items: int = Field(default=12, alias="AI_MAX_DIGEST_ITEMS")
     default_timezone: str = Field(default="Europe/Moscow", alias="DEFAULT_TIMEZONE")
     catalog_channels: str = Field(default="", alias="CATALOG_CHANNELS")
 

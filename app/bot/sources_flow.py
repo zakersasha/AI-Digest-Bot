@@ -3,7 +3,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import sources_keyboard
-from app.bot.screen import edit_from_callback, edit_screen, open_screen, replace_screen
+from app.bot.screen import edit_by_state, edit_from_callback, edit_screen, replace_screen
 from app.bot.states import OnboardingStates
 from app.i18n import t
 from app.repositories.source_repository import SourceRepository
@@ -41,7 +41,7 @@ async def show_sources_manage(
     await state.update_data(sources_onboarding=False)
     await state.set_state(OnboardingStates.managing_sources)
     text = t(lang, "sources_manage") + "\n\n" + _format_sources_list(sources, lang)
-    await edit_screen(target, state, text, sources_keyboard(lang, sources, onboarding=False))
+    await _render_sources_screen(target, state, text, sources, lang, onboarding=False)
 
 
 async def show_add_source_prompt(
@@ -59,28 +59,46 @@ async def show_add_source_prompt(
 
 async def process_source_links(
     message: Message,
-    state: FSMContext,
     session: AsyncSession,
-    lang: str,
     text: str,
-) -> tuple[int, int]:
-    """Returns (added_count, skipped_count)."""
+) -> tuple[int, int, list[str]]:
+    """Returns (new_count, duplicate_count, invalid_examples)."""
     user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
     if not user:
-        return 0, 0
+        return 0, 0, []
 
     links = parse_channel_links(text)
     if not links:
-        return 0, 0
+        return 0, 0, []
 
     repo = SourceRepository(session)
-    added = 0
+    new_count = 0
+    dup_count = 0
     for link in links:
-        if await repo.add_source(user.id, link):
-            added += 1
+        result = await repo.add_source(user.id, link)
+        if result == "new":
+            new_count += 1
+        elif result == "exists":
+            dup_count += 1
     await session.commit()
-    skipped = len(links) - added
-    return added, skipped
+    return new_count, dup_count, []
+
+
+async def _render_sources_screen(
+    target: Message,
+    state: FSMContext,
+    text: str,
+    sources,
+    lang: str,
+    *,
+    onboarding: bool,
+) -> None:
+    markup = sources_keyboard(lang, sources, onboarding=onboarding)
+    data = await state.get_data()
+    if data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(target.bot, state, text, markup)
+    else:
+        await replace_screen(target, state, text, markup)
 
 
 async def refresh_sources_screen(
@@ -91,6 +109,7 @@ async def refresh_sources_screen(
     telegram_id: int,
     *,
     onboarding: bool | None = None,
+    status_line: str | None = None,
 ) -> None:
     user = await UserRepository(session).get_by_telegram_id(telegram_id)
     if not user:
@@ -108,12 +127,10 @@ async def refresh_sources_screen(
         await state.set_state(OnboardingStates.managing_sources)
         text = t(lang, "sources_manage") + "\n\n" + _format_sources_list(sources, lang)
 
-    await edit_screen(
-        target,
-        state,
-        text,
-        sources_keyboard(lang, sources, onboarding=onboarding),
-    )
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    await _render_sources_screen(target, state, text, sources, lang, onboarding=onboarding)
 
 
 def source_key_from_callback(data: str) -> str:

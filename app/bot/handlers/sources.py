@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,16 +23,17 @@ from app.bot.states import OnboardingStates
 from app.i18n import resolve_lang, t
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
+
 router = Router(name="sources")
 
+_SOURCE_STATES = (
+    OnboardingStates.entering_sources,
+    OnboardingStates.managing_sources,
+    OnboardingStates.waiting_add_source,
+)
 
-def _is_onboarding(state: str | None) -> bool:
-    return state == OnboardingStates.entering_sources.state
 
-
-@router.message(OnboardingStates.entering_sources, F.text)
-@router.message(OnboardingStates.managing_sources, F.text)
-@router.message(OnboardingStates.waiting_add_source, F.text)
+@router.message(StateFilter(*_SOURCE_STATES), F.text)
 async def msg_source_links(
     message: Message,
     state: FSMContext,
@@ -42,15 +44,20 @@ async def msg_source_links(
 
     lang = await resolve_lang(session, message.from_user.id)
     data = await state.get_data()
-    current = await state.get_state()
-    onboarding = data.get(
-        "sources_onboarding",
-        current == OnboardingStates.entering_sources.state,
-    )
+    onboarding = data.get("sources_onboarding", True)
 
-    added, _ = await process_source_links(message, state, session, lang, message.text or "")
-    if added == 0:
-        await message.answer(t(lang, "sources_parse_failed"))
+    new_count, dup_count, _ = await process_source_links(message, session, message.text or "")
+
+    if new_count == 0 and dup_count == 0:
+        await refresh_sources_screen(
+            message,
+            state,
+            session,
+            lang,
+            message.from_user.id,
+            onboarding=onboarding,
+            status_line=t(lang, "sources_parse_failed"),
+        )
         return
 
     try:
@@ -58,9 +65,21 @@ async def msg_source_links(
     except Exception:
         pass
 
-    await message.answer(t(lang, "sources_added", count=added))
+    if new_count > 0:
+        status = t(lang, "sources_added", count=new_count)
+    elif dup_count > 0:
+        status = t(lang, "sources_already")
+    else:
+        status = None
+
     await refresh_sources_screen(
-        message, state, session, lang, message.from_user.id, onboarding=onboarding
+        message,
+        state,
+        session,
+        lang,
+        message.from_user.id,
+        onboarding=onboarding,
+        status_line=status,
     )
 
 
@@ -84,9 +103,15 @@ async def cb_src_remove(callback: CallbackQuery, state: FSMContext, session: Asy
     await session.commit()
     await callback.answer(t(lang, "source_removed"))
 
-    onboarding = _is_onboarding(await state.get_state())
+    data = await state.get_data()
+    onboarding = data.get("sources_onboarding", False)
     await refresh_sources_screen(
-        callback.message, state, session, lang, callback.from_user.id, onboarding=onboarding
+        callback.message,
+        state,
+        session,
+        lang,
+        callback.from_user.id,
+        onboarding=onboarding,
     )
 
 
