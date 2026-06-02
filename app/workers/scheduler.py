@@ -42,12 +42,7 @@ async def run_scheduled_tick(bot: Bot, settings: Settings) -> None:
 
             language = user.language or "ru"
             try:
-                digest_service = DigestService(
-                    session,
-                    ai,
-                    settings,
-                    settings.min_importance_score,
-                )
+                digest_service = DigestService(session, ai, settings)
                 content = await digest_service.generate_for_user(
                     user.id,
                     user.digest_frequency,

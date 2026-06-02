@@ -11,14 +11,9 @@ from app.services.digest_service import DigestService
 
 
 class ServicesMiddleware(BaseMiddleware):
-    def __init__(
-        self,
-        ai: AIProvider,
-        min_importance_score: int = 5,
-    ) -> None:
+    def __init__(self, ai: AIProvider) -> None:
         self._ai = ai
         self._settings = get_settings()
-        self._min_importance_score = min_importance_score
 
     async def __call__(
         self,
@@ -28,10 +23,5 @@ class ServicesMiddleware(BaseMiddleware):
     ) -> Any:
         async with async_session_factory() as session:
             data["session"] = session
-            data["digest_service"] = DigestService(
-                session,
-                self._ai,
-                self._settings,
-                min_importance_score=self._min_importance_score,
-            )
+            data["digest_service"] = DigestService(session, self._ai, self._settings)
             return await handler(event, data)

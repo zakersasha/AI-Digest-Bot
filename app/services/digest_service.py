@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, datetime
 
 import httpx
@@ -6,7 +5,7 @@ from openai import APIConnectionError, APITimeoutError, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
-from app.ai.context_limits import chars_for_tokens, fit_items_to_budget, truncate_text
+from app.ai.context_limits import digest_messages_char_budget, pack_messages_for_digest
 from app.config import Settings
 from app.i18n import frequency_label, t
 from app.repositories.digest_repository import DigestRepository
@@ -15,7 +14,7 @@ from app.repositories.user_repository import UserRepository
 from app.services.frequency import parse_frequency
 from app.services.telethon_client import shared_telethon_client
 from app.services.telethon_service import ChannelMessage
-from app.utils.links import markdown_source_link
+from app.utils.links import channel_username, markdown_source_link
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,74 +26,13 @@ class DigestService:
         session: AsyncSession,
         ai: AIProvider,
         settings: Settings,
-        min_importance_score: int,
     ) -> None:
         self._session = session
         self._ai = ai
         self._settings = settings
-        self._min_score = min_importance_score
         self._source_repo = SourceRepository(session)
         self._digest_repo = DigestRepository(session)
         self._user_repo = UserRepository(session)
-
-    async def _score_messages(
-        self,
-        messages: list[ChannelMessage],
-        language: str,
-    ) -> list[str]:
-        score_char_limit = self._settings.ai_score_message_max_chars
-        min_chars = self._settings.ai_min_message_chars
-        candidates: list[ChannelMessage] = []
-        for msg in messages:
-            text = truncate_text(msg.text, score_char_limit)
-            if len(text) >= min_chars:
-                candidates.append(msg)
-
-        batch_size = max(1, self._settings.ai_score_batch_size)
-        concurrency = max(1, self._settings.ai_score_concurrency)
-        sem = asyncio.Semaphore(concurrency)
-
-        batches: list[list[ChannelMessage]] = [
-            candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)
-        ]
-
-        async def score_batch(batch: list[ChannelMessage]) -> list[str]:
-            async with sem:
-                texts = [truncate_text(m.text, score_char_limit) for m in batch]
-                try:
-                    results = await self._ai.score_messages_batch(texts, language)
-                except (
-                    httpx.HTTPError,
-                    APIConnectionError,
-                    APITimeoutError,
-                    RateLimitError,
-                ) as exc:
-                    logger.error("ai_score_batch_failed", provider=self._ai.name, error=str(exc))
-                    raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
-                except Exception as exc:
-                    logger.warning(
-                        "ai_score_batch_error",
-                        provider=self._ai.name,
-                        error=str(exc),
-                        batch_size=len(batch),
-                    )
-                    results = []
-                    for text in texts:
-                        results.append(await self._ai.score_message(text, language))
-
-                summaries: list[str] = []
-                for msg, result in zip(batch, results, strict=False):
-                    if result.score >= self._min_score:
-                        summary = truncate_text(result.summary, 280)
-                        source_link = markdown_source_link(msg.source, msg.message_id)
-                        summaries.append(f"SUMMARY: {summary}\nSOURCE_LINK: {source_link}")
-                return summaries
-
-        batch_results = await asyncio.gather(*[score_batch(b) for b in batches])
-        scored: list[str] = []
-        for chunk in batch_results:
-            scored.extend(chunk)
-        return scored
 
     async def generate_for_user(self, user_id: int, frequency: str, language: str) -> str:
         sources = await self._source_repo.list_active_for_user(user_id)
@@ -126,33 +64,35 @@ class DigestService:
         if not all_messages:
             raise ValueError(t(language, "no_messages", label=label))
 
-        max_to_score = self._settings.ai_max_messages_to_score
-        if len(all_messages) > max_to_score:
+        max_messages = self._settings.ai_max_messages_to_score
+        if len(all_messages) > max_messages:
             all_messages.sort(key=lambda m: m.date, reverse=True)
-            all_messages = all_messages[:max_to_score]
-            logger.info("messages_truncated_for_scoring", user_id=user_id, kept=max_to_score)
+            all_messages = all_messages[:max_messages]
+            logger.info("messages_truncated_for_digest", user_id=user_id, kept=max_messages)
 
-        scored_summaries = await self._score_messages(all_messages, language)
+        items: list[tuple[str, str, str]] = []
+        for msg in all_messages:
+            username = channel_username(msg.source)
+            link = markdown_source_link(msg.source, msg.message_id)
+            items.append((f"@{username}", link, msg.text))
 
-        if not scored_summaries:
-            raise ValueError(t(language, "no_important"))
+        budget = digest_messages_char_budget(
+            self._settings.ai_max_context_tokens,
+            output_tokens=self._settings.ai_max_output_tokens,
+        )
+        blocks = pack_messages_for_digest(
+            items,
+            total_budget_chars=budget,
+            max_messages=max_messages,
+            per_message_max_chars=self._settings.ai_score_message_max_chars,
+            min_message_chars=self._settings.ai_min_message_chars,
+        )
 
-        max_items = self._settings.ai_max_digest_items
-        if len(scored_summaries) > max_items:
-            scored_summaries = scored_summaries[:max_items]
-
-        digest_budget = chars_for_tokens(self._settings.ai_digest_input_tokens)
-        scored_summaries = fit_items_to_budget(scored_summaries, digest_budget)
-
-        if not scored_summaries:
+        if not blocks:
             raise ValueError(t(language, "no_important"))
 
         try:
-            digest_body = await self._ai.generate_digest(
-                scored_summaries,
-                language,
-                max_chars=digest_budget,
-            )
+            digest_body = await self._ai.generate_digest(blocks, language)
         except (httpx.HTTPError, APIConnectionError, APITimeoutError, RateLimitError) as exc:
             logger.error("ai_digest_failed", provider=self._ai.name, error=str(exc))
             raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
@@ -177,7 +117,7 @@ class DigestService:
             frequency=frequency,
             language=language,
             messages=len(all_messages),
-            highlights=len(scored_summaries),
-            ai_batches=len(scored_summaries) // max(1, self._settings.ai_score_batch_size) + 1,
+            blocks=len(blocks),
+            prompt_budget_chars=budget,
         )
         return content

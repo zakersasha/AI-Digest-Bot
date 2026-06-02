@@ -71,10 +71,7 @@ async def run_bot() -> None:
     dp = Dispatcher()
     dp.update.middleware(LoggingMiddleware())
     dp.update.middleware(
-        ServicesMiddleware(
-            ai=ai,
-            min_importance_score=settings.min_importance_score,
-        )
+        ServicesMiddleware(ai=ai),
     )
     dp.include_router(router)
 

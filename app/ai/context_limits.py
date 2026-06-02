@@ -10,17 +10,64 @@ def truncate_text(text: str, max_chars: int) -> str:
     return text[: max_chars - 1].rstrip() + "…"
 
 
-def fit_items_to_budget(items: list[str], max_chars: int, separator: str = "\n\n") -> list[str]:
+def digest_messages_char_budget(
+    max_context_tokens: int,
+    *,
+    output_tokens: int = 700,
+    prompt_overhead_tokens: int = 400,
+) -> int:
+    """Character budget for raw message blocks inside the single digest prompt."""
+    reserved = output_tokens + prompt_overhead_tokens
+    input_tokens = max(300, max_context_tokens - reserved)
+    return chars_for_tokens(input_tokens)
+
+
+def format_digest_block(source_label: str, link: str, text: str, max_text_chars: int) -> str:
+    body = truncate_text(text, max_text_chars)
+    return f"---\n{body}\nSOURCE: {source_label}\nLINK: {link}"
+
+
+def pack_messages_for_digest(
+    items: list[tuple[str, str, str]],
+    *,
+    total_budget_chars: int,
+    max_messages: int,
+    per_message_max_chars: int,
+    min_message_chars: int,
+) -> list[str]:
+    """
+    Pack (source_label, link, text) tuples into blocks that fit total_budget_chars.
+    Newest items should be passed first.
+    """
     if not items:
         return []
-    selected: list[str] = []
+
+    eligible = [(s, l, t) for s, l, t in items if len(t.strip()) >= min_message_chars]
+    if not eligible:
+        return []
+
+    eligible = eligible[:max_messages]
+    count = len(eligible)
+    per_cap = min(per_message_max_chars, max(80, total_budget_chars // count))
+
+    blocks: list[str] = []
     used = 0
-    sep_len = len(separator)
-    for item in items:
-        piece = truncate_text(item, max_chars // 4)
-        extra = len(piece) + (sep_len if selected else 0)
-        if used + extra > max_chars:
+    separator_len = 2  # "\n\n"
+
+    for source_label, link, text in eligible:
+        block = format_digest_block(source_label, link, text, per_cap)
+        extra = len(block) + (separator_len if blocks else 0)
+        if used + extra > total_budget_chars:
+            if not blocks:
+                block = format_digest_block(
+                    source_label,
+                    link,
+                    text,
+                    max(80, total_budget_chars - len(source_label) - len(link) - 20),
+                )
+                blocks.append(block)
             break
-        selected.append(piece)
+        blocks.append(block)
         used += extra
-    return selected
+
+    return blocks

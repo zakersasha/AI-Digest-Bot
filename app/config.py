@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.ai.context_limits import chars_for_tokens
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -43,15 +45,19 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_messages_per_source: int = Field(default=30, alias="MAX_MESSAGES_PER_SOURCE")
-    min_importance_score: int = Field(default=5, alias="MIN_IMPORTANCE_SCORE")
     ai_max_context_tokens: int = Field(default=2048, alias="AI_MAX_CONTEXT_TOKENS")
-    ai_digest_input_tokens: int = Field(default=900, alias="AI_DIGEST_INPUT_TOKENS")
-    ai_score_message_max_chars: int = Field(default=800, alias="AI_SCORE_MESSAGE_MAX_CHARS")
+    ai_max_output_tokens: int = Field(default=700, alias="AI_MAX_OUTPUT_TOKENS")
+    ai_score_message_max_chars: int = Field(default=400, alias="AI_SCORE_MESSAGE_MAX_CHARS")
     ai_max_messages_to_score: int = Field(default=25, alias="AI_MAX_MESSAGES_TO_SCORE")
-    ai_max_digest_items: int = Field(default=12, alias="AI_MAX_DIGEST_ITEMS")
-    ai_score_batch_size: int = Field(default=4, alias="AI_SCORE_BATCH_SIZE")
-    ai_score_concurrency: int = Field(default=2, alias="AI_SCORE_CONCURRENCY")
     ai_min_message_chars: int = Field(default=40, alias="AI_MIN_MESSAGE_CHARS")
+
+    def digest_prompt_max_chars(self) -> int:
+        margin_tokens = 150
+        prompt_tokens = max(
+            400,
+            self.ai_max_context_tokens - self.ai_max_output_tokens - margin_tokens,
+        )
+        return chars_for_tokens(prompt_tokens)
     default_timezone: str = Field(default="Europe/Moscow", alias="DEFAULT_TIMEZONE")
     catalog_channels: str = Field(default="", alias="CATALOG_CHANNELS")
 
