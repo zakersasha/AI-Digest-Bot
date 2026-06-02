@@ -3,7 +3,8 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.keyboards import code_keyboard, connect_telegram_keyboard
+from app.bot.connect_step import hide_phone_keyboard, show_connect_step
+from app.bot.keyboards import code_keyboard
 from app.bot.screen import bind_screen, edit_screen
 from app.bot.states import LoginStates
 from app.config import get_settings
@@ -37,9 +38,60 @@ async def _finish_login(
     )
 
 
-async def show_connect_step(target: Message, state: FSMContext, lang: str) -> None:
-    await state.set_state(LoginStates.waiting_phone)
-    await edit_screen(target, state, t(lang, "step_connect"), connect_telegram_keyboard(lang))
+async def _edit_screen_connecting(message: Message, state: FSMContext, lang: str) -> None:
+    data = await state.get_data()
+    chat_id = data.get("screen_chat_id")
+    msg_id = data.get("screen_message_id")
+    if chat_id and msg_id:
+        await message.bot.edit_message_text(
+            t(lang, "login_connecting"),
+            chat_id=chat_id,
+            message_id=msg_id,
+        )
+
+
+async def _advance_to_code_step(
+    message: Message,
+    state: FSMContext,
+    lang: str,
+    phone: str,
+    phone_code_hash: str,
+) -> None:
+    await state.update_data(login_phone=phone, login_phone_code_hash=phone_code_hash)
+    await state.set_state(LoginStates.waiting_code)
+    data = await state.get_data()
+    if data.get("screen_chat_id") and data.get("screen_message_id"):
+        await message.bot.edit_message_text(
+            t(lang, "step_code", phone=phone),
+            chat_id=data["screen_chat_id"],
+            message_id=data["screen_message_id"],
+            reply_markup=code_keyboard(lang),
+        )
+
+
+async def _submit_phone(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    raw_phone: str,
+) -> None:
+    lang = await resolve_lang(session, message.from_user.id)
+    await hide_phone_keyboard(message)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    await _edit_screen_connecting(message, state, lang)
+    settings = get_settings()
+    try:
+        sent = await start_login(message.from_user.id, raw_phone, settings)
+    except ValueError as exc:
+        await message.answer(f"❌ {exc}")
+        await show_connect_step(message, state, lang)
+        return
+
+    await _advance_to_code_step(message, state, lang, sent.phone, sent.phone_code_hash)
 
 
 @router.callback_query(F.data == "auth:connect")
@@ -51,6 +103,25 @@ async def cb_auth_connect(callback: CallbackQuery, state: FSMContext, session: A
         await show_connect_step(callback.message, state, lang)
 
 
+@router.message(LoginStates.waiting_phone, F.contact)
+async def login_phone_contact(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
+    if not message.contact:
+        return
+    if message.contact.user_id != message.from_user.id:
+        lang = await resolve_lang(session, message.from_user.id)
+        await message.answer(t(lang, "contact_must_be_yours"))
+        return
+
+    phone = message.contact.phone_number
+    if not phone:
+        return
+    await _submit_phone(message, state, session, phone)
+
+
 @router.message(LoginStates.waiting_phone, F.text)
 async def login_phone_text(
     message: Message,
@@ -59,25 +130,7 @@ async def login_phone_text(
 ) -> None:
     if message.text and message.text.startswith("/"):
         return
-    lang = await resolve_lang(session, message.from_user.id)
-    settings = get_settings()
-    try:
-        sent = await start_login(message.from_user.id, message.text, settings)
-    except ValueError as exc:
-        await message.answer(f"❌ {exc}")
-        return
-
-    await state.update_data(login_phone=sent.phone, login_phone_code_hash=sent.phone_code_hash)
-    await state.set_state(LoginStates.waiting_code)
-
-    data = await state.get_data()
-    if data.get("screen_chat_id") and data.get("screen_message_id"):
-        await message.bot.edit_message_text(
-            t(lang, "step_code", phone=sent.phone),
-            chat_id=data["screen_chat_id"],
-            message_id=data["screen_message_id"],
-            reply_markup=code_keyboard(lang),
-        )
+    await _submit_phone(message, state, session, message.text or "")
 
 
 @router.message(LoginStates.waiting_code, F.text)

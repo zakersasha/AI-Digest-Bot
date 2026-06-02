@@ -1,4 +1,9 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 
 from app.i18n import t
 from app.services.telethon_service import SubscribedChannel
@@ -22,11 +27,13 @@ CB_AUTH_DISCONNECT = "auth:disconnect"
 CB_AUTH_RESEND = "auth:resend"
 
 
-def connect_telegram_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "btn_connect_telegram"), callback_data=CB_AUTH_CONNECT)],
-        ]
+def phone_request_keyboard(lang: str) -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=t(lang, "btn_share_phone"), request_contact=True)],
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
     )
 
 

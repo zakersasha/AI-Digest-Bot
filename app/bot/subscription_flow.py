@@ -52,11 +52,9 @@ async def load_user_subscriptions(user, state: FSMContext) -> list[SubscribedCha
 
 
 async def show_connect_step(target: Message, state: FSMContext, lang: str) -> None:
-    from app.bot.keyboards import connect_telegram_keyboard
-    from app.bot.states import LoginStates
+    from app.bot.connect_step import show_connect_step as _show
 
-    await state.set_state(LoginStates.waiting_phone)
-    await edit_screen(target, state, t(lang, "step_connect"), connect_telegram_keyboard(lang))
+    await _show(target, state, lang)
 
 
 async def show_channels_screen(

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     telegram_session_string: str = Field(default="", alias="TELEGRAM_SESSION_STRING")
     session_encryption_key: str = Field(alias="SESSION_ENCRYPTION_KEY")
     telegram_proxy_url: str | None = Field(default=None, alias="TELEGRAM_PROXY_URL")
+    telethon_connect_timeout: float = Field(default=45.0, alias="TELETHON_CONNECT_TIMEOUT")
 
     bot_proxy_url: str | None = Field(default=None, alias="BOT_PROXY_URL")
     bot_api_timeout: float = Field(default=60.0, alias="BOT_API_TIMEOUT")
@@ -45,6 +46,11 @@ class Settings(BaseSettings):
     min_importance_score: int = Field(default=5, alias="MIN_IMPORTANCE_SCORE")
     default_timezone: str = Field(default="Europe/Moscow", alias="DEFAULT_TIMEZONE")
     catalog_channels: str = Field(default="", alias="CATALOG_CHANNELS")
+
+
+def effective_telethon_proxy_url(settings: Settings) -> str | None:
+    """Telethon uses TELEGRAM_PROXY_URL, or BOT_PROXY_URL if the former is unset."""
+    return settings.telegram_proxy_url or settings.bot_proxy_url
 
 
 @lru_cache

@@ -10,7 +10,7 @@ from telethon.errors import (
 from telethon.sessions import StringSession
 
 from app.config import Settings
-from app.services.telethon_client import _proxy_from_settings
+from app.services.telethon_client import _client_kwargs, connect_telethon
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -34,14 +34,13 @@ def normalize_phone(raw: str) -> str:
 
 
 async def _create_client(settings: Settings) -> TelegramClient:
-    proxy = _proxy_from_settings(settings)
     client = TelegramClient(
         StringSession(),
         settings.telegram_api_id,
         settings.telegram_api_hash,
-        proxy=proxy,
+        **_client_kwargs(settings),
     )
-    await client.connect()
+    await connect_telethon(client, settings)
     return client
 
 

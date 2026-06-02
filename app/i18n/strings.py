@@ -8,8 +8,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "step_connect": (
             "<b>Шаг 2 из 5</b> — подключите Telegram\n\n"
             "Нужен доступ к <b>вашим</b> подпискам (только для чтения каналов).\n\n"
-            "Отправьте номер телефона сообщением в этот чат:\n"
-            "<code>+79001234567</code>"
+            "Нажмите кнопку ниже и выберите «Поделиться контактом» — "
+            "номер подставится автоматически."
         ),
         "step_code": (
             "<b>Шаг 2 из 5</b> — код из Telegram\n\n"
@@ -29,7 +29,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "channels_loading": "⏳ Загружаю ваши подписки из Telegram…",
         "telegram_linked": "✅ Telegram подключён ({phone})",
         "telegram_not_linked": "❌ Сначала подключите Telegram (шаг 2).",
-        "btn_connect_telegram": "📱 Как ввести номер",
+        "btn_share_phone": "📱 Поделиться номером",
+        "login_connecting": "⏳ Подключаюсь к Telegram…",
+        "contact_must_be_yours": "❌ Нужен ваш контакт, не чужой.",
         "btn_resend_code": "🔄 Отправить код снова",
         "btn_disconnect": "🔌 Отключить Telegram",
         "share_phone_hint": "Нажмите кнопку и выберите «Поделиться контактом»",
@@ -102,8 +104,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "step_connect": (
             "<b>Step 2 of 5</b> — connect Telegram\n\n"
             "We need access to <b>your</b> subscriptions (read-only).\n\n"
-            "Send your phone number as a message in this chat:\n"
-            "<code>+79001234567</code>"
+            "Tap the button below and choose «Share contact» — "
+            "your number will be filled in automatically."
         ),
         "step_code": (
             "<b>Step 2 of 5</b> — code from Telegram\n\n"
@@ -123,7 +125,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "channels_loading": "⏳ Loading your Telegram subscriptions…",
         "telegram_linked": "✅ Telegram connected ({phone})",
         "telegram_not_linked": "❌ Connect Telegram first (step 2).",
-        "btn_connect_telegram": "📱 How to enter phone",
+        "btn_share_phone": "📱 Share phone number",
+        "login_connecting": "⏳ Connecting to Telegram…",
+        "contact_must_be_yours": "❌ Please share your own contact.",
         "btn_resend_code": "🔄 Resend code",
         "btn_disconnect": "🔌 Disconnect Telegram",
         "share_phone_hint": "Tap the button and choose «Share contact»",
