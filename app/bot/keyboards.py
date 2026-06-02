@@ -41,7 +41,6 @@ def code_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "btn_resend_code"), callback_data=CB_AUTH_RESEND)],
-            [InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_AUTH_CONNECT)],
         ]
     )
 

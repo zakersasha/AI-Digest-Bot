@@ -17,6 +17,8 @@ from app.services.telethon_auth import (
     get_pending_phone,
     is_plausible_phone,
     looks_like_sms_code,
+    normalize_code,
+    resend_login_code,
     start_login,
 )
 
@@ -55,7 +57,7 @@ async def _advance_to_code_step(
     lang: str,
     phone: str,
 ) -> None:
-    await state.update_data(login_phone=phone)
+    await state.update_data(login_phone=phone, login_code_pending=True)
     await state.set_state(LoginStates.waiting_code)
     await edit_screen(
         message,
@@ -167,8 +169,8 @@ async def login_code(
         await show_connect_step(message, state, lang)
         return
 
-    code_text = (message.text or "").strip()
-    if not code_text or not code_text.replace(" ", "").isdigit():
+    code_text = normalize_code(message.text or "")
+    if not code_text or len(code_text) < 4:
         await message.answer(t(lang, "invalid_code_format"))
         return
 
@@ -181,13 +183,21 @@ async def login_code(
     try:
         session_string = await complete_login(message.from_user.id, code_text, settings)
     except ValueError as exc:
-        if str(exc) == "2FA_REQUIRED":
+        msg = str(exc)
+        if msg == "2FA_REQUIRED":
             await state.set_state(LoginStates.waiting_2fa)
             await edit_screen(message, state, t(lang, "step_2fa"), code_keyboard(lang))
             return
-        if "expired" in str(exc).lower():
+        if "new code was sent" in msg.lower():
+            await edit_screen(
+                message,
+                state,
+                t(lang, "step_code", phone=phone) + "\n\n" + t(lang, "code_use_latest"),
+                code_keyboard(lang),
+            )
+        elif "expired" in msg.lower() and "share" in msg.lower():
             await show_connect_step(message, state, lang)
-        await message.answer(f"❌ {exc}")
+        await message.answer(f"❌ {msg}")
         return
 
     await UserRepository(session).save_telethon_session(
@@ -240,17 +250,19 @@ async def cb_auth_resend(callback: CallbackQuery, state: FSMContext, session: As
 
     settings = get_settings()
     try:
-        sent = await start_login(callback.from_user.id, phone, settings)
+        sent = await resend_login_code(callback.from_user.id, settings)
         await state.update_data(login_phone=sent.phone)
         await callback.answer(t(lang, "code_resent"))
         await edit_screen(
             callback.message,
             state,
-            t(lang, "step_code", phone=sent.phone),
+            t(lang, "step_code", phone=sent.phone) + "\n\n" + t(lang, "code_use_latest"),
             code_keyboard(lang),
         )
     except ValueError as exc:
         await callback.answer(str(exc), show_alert=True)
+        if "share" in str(exc).lower() and callback.message:
+            await show_connect_step(callback.message, state, lang)
 
 
 @router.callback_query(F.data == "auth:disconnect")

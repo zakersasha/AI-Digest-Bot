@@ -13,9 +13,11 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "step_code": (
             "<b>Шаг 2 из 5</b> — код из Telegram\n\n"
-            "Отправьте код из SMS или Telegram-сообщения.\n"
+            "Отправьте <b>только цифры</b> из последнего сообщения Telegram "
+            "(не из старых уведомлений).\n"
             "Телефон: <code>{phone}</code>"
         ),
+        "code_use_latest": "⚠️ Используйте код из <b>последнего</b> сообщения Telegram.",
         "step_2fa": (
             "<b>Двухфакторная защита</b>\n\n"
             "Отправьте пароль облачного пароля Telegram."
@@ -114,9 +116,11 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "step_code": (
             "<b>Step 2 of 5</b> — code from Telegram\n\n"
-            "Send the code from SMS or Telegram.\n"
+            "Send <b>digits only</b> from the latest Telegram message "
+            "(not old notifications).\n"
             "Phone: <code>{phone}</code>"
         ),
+        "code_use_latest": "⚠️ Use the code from the <b>latest</b> Telegram message.",
         "step_2fa": (
             "<b>Two-factor authentication</b>\n\n"
             "Send your Telegram cloud password."
