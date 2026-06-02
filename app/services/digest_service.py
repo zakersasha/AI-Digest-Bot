@@ -76,10 +76,7 @@ class DigestService:
             link = markdown_source_link(msg.source, msg.message_id)
             items.append((f"@{username}", link, msg.text))
 
-        budget = digest_messages_char_budget(
-            self._settings.ai_max_context_tokens,
-            output_tokens=self._settings.ai_max_output_tokens,
-        )
+        budget = digest_messages_char_budget(self._settings.ai_max_context_tokens)
         blocks = pack_messages_for_digest(
             items,
             total_budget_chars=budget,

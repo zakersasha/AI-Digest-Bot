@@ -33,13 +33,22 @@ class OpenAIProvider(AIProvider):
         max_prompt_chars = settings.digest_prompt_max_chars()
         prompt = truncate_text(prompt, max_prompt_chars)
 
-        logger.info("ai_request", provider=self.name, model=self._model, prompt_chars=len(prompt))
-        response = await self._client.chat.completions.create(
+        kwargs: dict = {
+            "model": self._model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+            "max_tokens": settings.ai_max_output_tokens,
+        }
+        if settings.ai_reasoning_effort:
+            kwargs["reasoning_effort"] = settings.ai_reasoning_effort
+        logger.info(
+            "ai_request",
+            provider=self.name,
             model=self._model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
+            prompt_chars=len(prompt),
             max_tokens=settings.ai_max_output_tokens,
         )
+        response = await self._client.chat.completions.create(**kwargs)
         content = response.choices[0].message.content or ""
         logger.info("ai_response", provider=self.name, chars=len(content))
         return content.strip()

@@ -1,18 +1,16 @@
-SINGLE_DIGEST_PROMPT = """Create a Telegram digest from the channel posts below.
+SINGLE_DIGEST_PROMPT = """Create a short digest from these Telegram channel posts.
 
-IMPORTANT:
-- Write the entire digest in {language_name} only.
-- Pick only important updates (skip spam, greetings, ads, low-value chatter).
-- Up to 12 numbered highlights; each 1-2 concrete sentences.
-- At the end of EVERY numbered item, append the source link exactly as in LINK (keep markdown unchanged).
+Write the entire digest in {language_name} only.
+Pick the most important updates (skip spam, greetings, ads).
+Up to 10 numbered highlights, 1-2 sentences each.
+At the end of each item, append the LINK line unchanged (markdown).
 
-Format in Telegram Markdown (NOT HTML):
-- Use *bold* for section titles
-- Numbered items: *1.* text ending with the LINK line
-- Section *Key trends:* with bullets starting with •
+Format:
+1. <highlight> <LINK>
+2. <highlight> <LINK>
 
-Example item:
-*1.* City hall announced new metro line extension. ([@channel](https://t.me/channel/123))
+Key trends:
+- <trend>
 
 Posts:
 {messages}"""

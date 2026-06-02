@@ -13,12 +13,10 @@ def truncate_text(text: str, max_chars: int) -> str:
 def digest_messages_char_budget(
     max_context_tokens: int,
     *,
-    output_tokens: int = 700,
-    prompt_overhead_tokens: int = 400,
+    prompt_overhead_tokens: int = 350,
 ) -> int:
     """Character budget for raw message blocks inside the single digest prompt."""
-    reserved = output_tokens + prompt_overhead_tokens
-    input_tokens = max(300, max_context_tokens - reserved)
+    input_tokens = max(600, max_context_tokens - prompt_overhead_tokens)
     return chars_for_tokens(input_tokens)
 
 
