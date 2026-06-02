@@ -1,9 +1,10 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.utils.crypto import encrypt_session
 
 
 class UserRepository:
@@ -79,6 +80,34 @@ class UserRepository:
         await self._session.flush()
         return user
 
+    def has_telethon(self, user: User) -> bool:
+        return bool(user.telethon_session_encrypted)
+
+    async def save_telethon_session(
+        self,
+        telegram_id: int,
+        session_string: str,
+        phone: str,
+    ) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.telethon_session_encrypted = encrypt_session(session_string)
+        user.telegram_phone = phone
+        user.telethon_linked_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return user
+
+    async def clear_telethon_session(self, telegram_id: int) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.telethon_session_encrypted = None
+        user.telegram_phone = None
+        user.telethon_linked_at = None
+        await self._session.flush()
+        return user
+
     async def update_last_digest(self, user_id: int, at: datetime) -> None:
         result = await self._session.execute(select(User).where(User.id == user_id))
         user = result.scalar_one()
@@ -92,6 +121,7 @@ class UserRepository:
                 User.digest_frequency.isnot(None),
                 User.delivery_hour.isnot(None),
                 User.language.isnot(None),
+                User.telethon_session_encrypted.isnot(None),
             )
         )
         return list(result.scalars().all())

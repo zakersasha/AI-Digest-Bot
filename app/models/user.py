@@ -24,6 +24,9 @@ class User(Base):
     delivery_minute: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     timezone: Mapped[str] = mapped_column(String(64), default="Europe/Moscow", server_default="Europe/Moscow")
     last_digest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    telethon_session_encrypted: Mapped[str | None] = mapped_column(nullable=True)
+    telegram_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    telethon_linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

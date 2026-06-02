@@ -13,7 +13,6 @@ from app.bot.logging_middleware import LoggingMiddleware
 from app.bot.middlewares import ServicesMiddleware
 from app.config import get_settings
 from app.db.session import init_db
-from app.services.telethon_service import TelethonService
 from app.utils.logging import get_logger, setup_logging
 from app.workers.scheduler import scheduler_loop
 
@@ -53,7 +52,6 @@ async def run_bot() -> None:
     await init_db()
     logger.info("database_initialized")
 
-    telethon = await TelethonService.create(settings)
     ai = create_ai_provider(settings)
     logger.info("ai_provider_selected", provider=ai.name)
 
@@ -67,7 +65,6 @@ async def run_bot() -> None:
     dp.update.middleware(LoggingMiddleware())
     dp.update.middleware(
         ServicesMiddleware(
-            telethon=telethon,
             ai=ai,
             min_importance_score=settings.min_importance_score,
         )
@@ -77,13 +74,12 @@ async def run_bot() -> None:
     await set_bot_commands(bot)
     logger.info("bot_starting")
 
-    scheduler_task = asyncio.create_task(scheduler_loop(bot, telethon, settings))
+    scheduler_task = asyncio.create_task(scheduler_loop(bot, settings))
 
     try:
         await dp.start_polling(bot)
     finally:
         scheduler_task.cancel()
-        await telethon.close()
         await bot.session.close()
 
 

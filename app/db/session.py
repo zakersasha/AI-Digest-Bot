@@ -22,6 +22,11 @@ _USER_MIGRATIONS = (
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64) DEFAULT 'Europe/Moscow'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_digest_at TIMESTAMPTZ",
     "ALTER TABLE sources ADD COLUMN IF NOT EXISTS catalog_channel_id INTEGER",
+    "ALTER TABLE sources ADD COLUMN IF NOT EXISTS telegram_peer_id BIGINT",
+    "ALTER TABLE sources ALTER COLUMN catalog_channel_id DROP NOT NULL",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS telethon_session_encrypted TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_phone VARCHAR(32)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS telethon_linked_at TIMESTAMPTZ",
 )
 
 

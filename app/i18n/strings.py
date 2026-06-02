@@ -2,17 +2,46 @@ STRINGS: dict[str, dict[str, str]] = {
     "ru": {
         "welcome": (
             "👋 <b>AI Digest Bot</b>\n\n"
-            "Персональные AI-сводки из Telegram-каналов — без шума, только важное.\n\n"
-            "<b>Шаг 1 из 4</b> — выберите язык:"
+            "Персональные AI-сводки из ваших Telegram-каналов.\n\n"
+            "<b>Шаг 1 из 5</b> — выберите язык:"
+        ),
+        "step_connect": (
+            "<b>Шаг 2 из 5</b> — подключите Telegram\n\n"
+            "Нужен доступ к <b>вашим</b> подпискам (только для чтения каналов).\n\n"
+            "Отправьте номер телефона сообщением в этот чат:\n"
+            "<code>+79001234567</code>"
+        ),
+        "step_code": (
+            "<b>Шаг 2 из 5</b> — код из Telegram\n\n"
+            "Отправьте код из SMS или Telegram-сообщения.\n"
+            "Телефон: <code>{phone}</code>"
+        ),
+        "step_2fa": (
+            "<b>Двухфакторная защита</b>\n\n"
+            "Отправьте пароль облачного пароля Telegram."
         ),
         "step_channels": (
-            "<b>Шаг 2 из 4</b> — каналы для дайджеста\n\n"
-            "Нажмите, чтобы включить или выключить канал.\n"
+            "<b>Шаг 3 из 5</b> — ваши подписки\n\n"
+            "Публичные каналы и группы с @username.\n"
             "Выбрано: <b>{count}</b>\n\n"
-            "Когда готовы — нажмите «Продолжить»."
+            "🔄 — обновить список · ✅ — продолжить"
         ),
+        "channels_loading": "⏳ Загружаю ваши подписки из Telegram…",
+        "telegram_linked": "✅ Telegram подключён ({phone})",
+        "telegram_not_linked": "❌ Сначала подключите Telegram (шаг 2).",
+        "btn_connect_telegram": "📱 Как ввести номер",
+        "btn_resend_code": "🔄 Отправить код снова",
+        "btn_disconnect": "🔌 Отключить Telegram",
+        "share_phone_hint": "Нажмите кнопку и выберите «Поделиться контактом»",
+        "channels_empty": (
+            "Не найдено публичных каналов в подписках.\n\n"
+            "Подпишитесь на каналы с @username в Telegram и нажмите 🔄."
+        ),
+        "channels_refreshed": "Список обновлён",
+        "digest_truncated": "показана краткая версия",
+        "btn_menu": "🏠 В меню",
         "step_frequency": (
-            "<b>Шаг 3 из 4</b> — как часто присылать дайджест?\n\n"
+            "<b>Шаг 4 из 5</b> — как часто присылать дайджест?\n\n"
             "Период сводки = интервал рассылки:\n"
             "• раз в 12 ч → за последние 12 часов\n"
             "• раз в день → за последние сутки\n"
@@ -20,7 +49,7 @@ STRINGS: dict[str, dict[str, str]] = {
             "• раз в неделю → за неделю"
         ),
         "step_time": (
-            "<b>Шаг 4 из 4</b> — во сколько присылать?\n\n"
+            "<b>Шаг 5 из 5</b> — во сколько присылать?\n\n"
             "Часовой пояс: <b>{timezone}</b>\n"
             "При «раз в 12 ч» — в это время и через 12 часов."
         ),
@@ -67,17 +96,46 @@ STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "welcome": (
             "👋 <b>AI Digest Bot</b>\n\n"
-            "Personal AI digests from Telegram channels — no noise, just what matters.\n\n"
-            "<b>Step 1 of 4</b> — choose your language:"
+            "Personal AI digests from your Telegram channels.\n\n"
+            "<b>Step 1 of 5</b> — choose your language:"
+        ),
+        "step_connect": (
+            "<b>Step 2 of 5</b> — connect Telegram\n\n"
+            "We need access to <b>your</b> subscriptions (read-only).\n\n"
+            "Send your phone number as a message in this chat:\n"
+            "<code>+79001234567</code>"
+        ),
+        "step_code": (
+            "<b>Step 2 of 5</b> — code from Telegram\n\n"
+            "Send the code from SMS or Telegram.\n"
+            "Phone: <code>{phone}</code>"
+        ),
+        "step_2fa": (
+            "<b>Two-factor authentication</b>\n\n"
+            "Send your Telegram cloud password."
         ),
         "step_channels": (
-            "<b>Step 2 of 4</b> — channels for your digest\n\n"
-            "Tap to enable or disable a channel.\n"
+            "<b>Step 3 of 5</b> — your subscriptions\n\n"
+            "Public channels and groups with @username.\n"
             "Selected: <b>{count}</b>\n\n"
-            "When ready — tap «Continue»."
+            "🔄 — refresh · ✅ — continue"
         ),
+        "channels_loading": "⏳ Loading your Telegram subscriptions…",
+        "telegram_linked": "✅ Telegram connected ({phone})",
+        "telegram_not_linked": "❌ Connect Telegram first (step 2).",
+        "btn_connect_telegram": "📱 How to enter phone",
+        "btn_resend_code": "🔄 Resend code",
+        "btn_disconnect": "🔌 Disconnect Telegram",
+        "share_phone_hint": "Tap the button and choose «Share contact»",
+        "channels_empty": (
+            "No public channels found in subscriptions.\n\n"
+            "Subscribe to channels with @username in Telegram and tap 🔄."
+        ),
+        "channels_refreshed": "List refreshed",
+        "digest_truncated": "short preview shown",
+        "btn_menu": "🏠 Menu",
         "step_frequency": (
-            "<b>Step 3 of 4</b> — how often to send the digest?\n\n"
+            "<b>Step 4 of 5</b> — how often to send the digest?\n\n"
             "Digest period = delivery interval:\n"
             "• every 12h → last 12 hours\n"
             "• daily → last 24 hours\n"
@@ -85,7 +143,7 @@ STRINGS: dict[str, dict[str, str]] = {
             "• weekly → last 7 days"
         ),
         "step_time": (
-            "<b>Step 4 of 4</b> — what time to deliver?\n\n"
+            "<b>Step 5 of 5</b> — what time to deliver?\n\n"
             "Timezone: <b>{timezone}</b>\n"
             "For «every 12h» — at this time and 12 hours later."
         ),
