@@ -1,11 +1,12 @@
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.connect_step import hide_phone_keyboard, show_connect_step
 from app.bot.keyboards import code_keyboard
-from app.bot.screen import bind_screen, edit_screen
+from app.bot.screen import bind_screen, edit_screen, replace_screen
 from app.bot.states import LoginStates
 from app.config import get_settings
 from app.i18n import resolve_lang, t
@@ -27,27 +28,18 @@ async def _finish_login(
     chat_id = data.get("screen_chat_id")
     msg_id = data.get("screen_message_id")
     if chat_id and msg_id:
-        screen = await message.bot.edit_message_text(
-            t(lang, "channels_loading"),
-            chat_id=chat_id,
-            message_id=msg_id,
-        )
-        await bind_screen(state, screen)
+        try:
+            screen = await message.bot.edit_message_text(
+                t(lang, "channels_loading"),
+                chat_id=chat_id,
+                message_id=msg_id,
+            )
+            await bind_screen(state, screen)
+        except TelegramBadRequest:
+            await replace_screen(message, state, t(lang, "channels_loading"), None)
     await show_channels_loading(
         message, state, session, lang, message.from_user.id, set()
     )
-
-
-async def _edit_screen_connecting(message: Message, state: FSMContext, lang: str) -> None:
-    data = await state.get_data()
-    chat_id = data.get("screen_chat_id")
-    msg_id = data.get("screen_message_id")
-    if chat_id and msg_id:
-        await message.bot.edit_message_text(
-            t(lang, "login_connecting"),
-            chat_id=chat_id,
-            message_id=msg_id,
-        )
 
 
 async def _advance_to_code_step(
@@ -59,14 +51,12 @@ async def _advance_to_code_step(
 ) -> None:
     await state.update_data(login_phone=phone, login_phone_code_hash=phone_code_hash)
     await state.set_state(LoginStates.waiting_code)
-    data = await state.get_data()
-    if data.get("screen_chat_id") and data.get("screen_message_id"):
-        await message.bot.edit_message_text(
-            t(lang, "step_code", phone=phone),
-            chat_id=data["screen_chat_id"],
-            message_id=data["screen_message_id"],
-            reply_markup=code_keyboard(lang),
-        )
+    await edit_screen(
+        message,
+        state,
+        t(lang, "step_code", phone=phone),
+        code_keyboard(lang),
+    )
 
 
 async def _submit_phone(
@@ -82,7 +72,7 @@ async def _submit_phone(
     except Exception:
         pass
 
-    await _edit_screen_connecting(message, state, lang)
+    await replace_screen(message, state, t(lang, "login_connecting"), None)
     settings = get_settings()
     try:
         sent = await start_login(message.from_user.id, raw_phone, settings)
@@ -159,14 +149,7 @@ async def login_code(
     except ValueError as exc:
         if str(exc) == "2FA_REQUIRED":
             await state.set_state(LoginStates.waiting_2fa)
-            data = await state.get_data()
-            if data.get("screen_chat_id") and data.get("screen_message_id"):
-                await message.bot.edit_message_text(
-                    t(lang, "step_2fa"),
-                    chat_id=data["screen_chat_id"],
-                    message_id=data["screen_message_id"],
-                    reply_markup=code_keyboard(lang),
-                )
+            await edit_screen(message, state, t(lang, "step_2fa"), code_keyboard(lang))
             return
         await message.answer(f"❌ {exc}")
         return

@@ -1,7 +1,14 @@
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    Message,
+    ReplyKeyboardMarkup,
+)
+
+ScreenMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup | None
 
 
 async def bind_screen(state: FSMContext, message: Message) -> None:
@@ -11,33 +18,54 @@ async def bind_screen(state: FSMContext, message: Message) -> None:
     )
 
 
-async def open_screen(
-    message: Message,
-    state: FSMContext,
-    text: str,
-    markup: InlineKeyboardMarkup | None,
-    *,
-    parse_mode: str | None = ParseMode.HTML,
-) -> Message:
+async def _delete_screen(bot, state: FSMContext) -> None:
     data = await state.get_data()
     old_chat = data.get("screen_chat_id")
     old_msg = data.get("screen_message_id")
     if old_chat and old_msg:
         try:
-            await message.bot.delete_message(chat_id=old_chat, message_id=old_msg)
+            await bot.delete_message(chat_id=old_chat, message_id=old_msg)
         except TelegramBadRequest:
             pass
 
-    sent = await message.answer(text, reply_markup=markup, parse_mode=parse_mode)
+
+def _is_edit_forbidden(exc: TelegramBadRequest) -> bool:
+    err = str(exc).lower()
+    return "can't be edited" in err or "message to edit not found" in err
+
+
+async def replace_screen(
+    anchor: Message,
+    state: FSMContext,
+    text: str,
+    markup: ScreenMarkup = None,
+    *,
+    parse_mode: str | None = ParseMode.HTML,
+) -> Message:
+    """Delete the current screen and send a new message (required after reply keyboards)."""
+    await _delete_screen(anchor.bot, state)
+    sent = await anchor.answer(text, reply_markup=markup, parse_mode=parse_mode)
     await bind_screen(state, sent)
     return sent
+
+
+async def open_screen(
+    message: Message,
+    state: FSMContext,
+    text: str,
+    markup: ScreenMarkup,
+    *,
+    parse_mode: str | None = ParseMode.HTML,
+) -> Message:
+    await _delete_screen(message.bot, state)
+    return await replace_screen(message, state, text, markup, parse_mode=parse_mode)
 
 
 async def edit_screen(
     target: Message,
     state: FSMContext,
     text: str,
-    markup: InlineKeyboardMarkup | None = None,
+    markup: ScreenMarkup = None,
     *,
     parse_mode: str | None = ParseMode.HTML,
 ) -> None:
@@ -54,8 +82,12 @@ async def edit_screen(
             parse_mode=parse_mode,
         )
     except TelegramBadRequest as exc:
-        if "message is not modified" not in str(exc).lower():
-            raise
+        if "message is not modified" in str(exc).lower():
+            return
+        if _is_edit_forbidden(exc):
+            await replace_screen(target, state, text, markup, parse_mode=parse_mode)
+            return
+        raise
 
     if not data.get("screen_message_id"):
         await bind_screen(state, target)
