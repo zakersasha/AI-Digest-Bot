@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     telegram_api_hash: str = Field(alias="TELEGRAM_API_HASH")
     telegram_session_string: str = Field(alias="TELEGRAM_SESSION_STRING")
 
+    bot_proxy_url: str | None = Field(default=None, alias="BOT_PROXY_URL")
+    bot_api_timeout: float = Field(default=60.0, alias="BOT_API_TIMEOUT")
+
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     max_messages_per_source: int = Field(default=30, alias="MAX_MESSAGES_PER_SOURCE")
     min_importance_score: int = Field(default=5, alias="MIN_IMPORTANCE_SCORE")

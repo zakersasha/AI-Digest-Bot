@@ -1,11 +1,11 @@
 import asyncio
 
-import socks
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, BotCommandScopeDefault
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramNetworkError
+from aiogram.types import BotCommand, BotCommandScopeDefault
 
 from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
@@ -19,7 +19,14 @@ from app.utils.logging import get_logger, setup_logging
 logger = get_logger(__name__)
 
 
-async def set_bot_commands(bot: Bot) -> None:
+def create_bot_session(settings) -> AiohttpSession | None:
+    if not settings.bot_proxy_url:
+        return AiohttpSession(timeout=settings.bot_api_timeout)
+    logger.info("bot_proxy_enabled")
+    return AiohttpSession(proxy=settings.bot_proxy_url, timeout=settings.bot_api_timeout)
+
+
+async def set_bot_commands(bot: Bot, retries: int = 3) -> None:
     commands = [
         BotCommand(command="start", description="Welcome & setup"),
         BotCommand(command="add", description="Add a public channel"),
@@ -27,7 +34,26 @@ async def set_bot_commands(bot: Bot) -> None:
         BotCommand(command="digest", description="Generate AI digest"),
         BotCommand(command="help", description="Help"),
     ]
-    await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+
+    for attempt in range(1, retries + 1):
+        try:
+            await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+            logger.info("bot_commands_set")
+            return
+        except TelegramNetworkError as exc:
+            logger.warning(
+                "bot_commands_failed",
+                attempt=attempt,
+                retries=retries,
+                error=str(exc),
+            )
+            if attempt < retries:
+                await asyncio.sleep(2 ** (attempt - 1))
+
+    logger.warning(
+        "bot_commands_skipped",
+        reason="Telegram API unreachable; bot will run without command menu",
+    )
 
 
 async def run_bot() -> None:
@@ -40,25 +66,12 @@ async def run_bot() -> None:
     telethon = await TelethonService.create(settings)
     ai = create_ai_provider(settings)
     logger.info("ai_provider_selected", provider=ai.name)
-    PROXY_IP = '45.93.137.80'  # IP-адрес прокси
-    PROXY_PORT = 3128  # Порт прокси
-    PROXY_USER = 'proxy_user'  # Логин (если прокси без авторизации, поставьте None)
-    PROXY_PASS = '97vAN1S'  # Пароль (если прокси без авторизации, поставьте None)
 
-    proxy_url = (
-        f"http://{PROXY_USER}:{PROXY_PASS}@{PROXY_IP}:{PROXY_PORT}"
-    )
-
-    session = AiohttpSession(
-        proxy=proxy_url
-    )
-
+    session = create_bot_session(settings)
     bot = Bot(
         token=settings.bot_token,
         session=session,
-        default=DefaultBotProperties(
-            parse_mode=ParseMode.HTML
-        ),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
     dp.update.middleware(LoggingMiddleware())
