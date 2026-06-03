@@ -12,9 +12,12 @@ def create_ai_provider(settings: Settings) -> AIProvider:
         if not settings.openai_api_key:
             raise ValueError("OPENAI_API_KEY is required when AI_PROVIDER=openai")
         limits = settings.digest_ai_limits()
+        from app.ai.openai_urls import resolve_openai_base_url
+
         logger.info(
             "openai_digest_limits",
             model=settings.openai_model,
+            base_url=resolve_openai_base_url(settings.openai_base_url),
             context_tokens=limits.max_context_tokens,
             max_messages=limits.max_messages,
         )

@@ -1,6 +1,7 @@
 from openai import APIConnectionError, AsyncOpenAI
 
 from app.ai.base import AIProvider
+from app.ai.openai_urls import resolve_openai_base_url
 from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
 from app.ai.prompts import SINGLE_DIGEST_PROMPT
 from app.config import get_settings
@@ -24,14 +25,15 @@ class OpenAIProvider(AIProvider):
         self._proxy_url = proxy_url
         self._http_client = create_httpx_client(proxy_url, timeout)
 
+        resolved_base = resolve_openai_base_url(base_url)
         client_kwargs: dict = {
             "api_key": api_key,
+            "base_url": resolved_base,
             "http_client": self._http_client,
             "max_retries": 2,
         }
-        if base_url:
-            client_kwargs["base_url"] = base_url
 
+        logger.info("openai_client_configured", base_url=resolved_base)
         if proxy_url:
             logger.info(
                 "openai_proxy_enabled",

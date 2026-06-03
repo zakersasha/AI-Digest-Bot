@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.ai.context_limits import (
@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     )
     openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
     openai_proxy_url: str | None = Field(default=None, alias="OPENAI_PROXY_URL")
+
+    @field_validator("openai_base_url", "openai_proxy_url", "bot_proxy_url", "telegram_proxy_url", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     telegram_api_id: int = Field(alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field(alias="TELEGRAM_API_HASH")
