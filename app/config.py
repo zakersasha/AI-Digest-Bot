@@ -128,8 +128,8 @@ def effective_telethon_proxy_url(settings: Settings) -> str | None:
 
 
 def effective_openai_proxy_url(settings: Settings) -> str | None:
-    """OpenAI HTTP client uses OPENAI_PROXY_URL, or BOT_PROXY_URL if unset."""
-    return settings.openai_proxy_url or settings.bot_proxy_url
+    """OpenAI: OPENAI_PROXY_URL, else the same proxy chain as Telethon."""
+    return settings.openai_proxy_url or effective_telethon_proxy_url(settings)
 
 
 @lru_cache

@@ -73,10 +73,18 @@ async def run_bot() -> None:
     if settings.ai_provider == "openai":
         openai_proxy = effective_openai_proxy_url(settings)
         if openai_proxy:
-            src = "OPENAI_PROXY_URL" if settings.openai_proxy_url else "BOT_PROXY_URL"
+            if settings.openai_proxy_url:
+                src = "OPENAI_PROXY_URL"
+            elif settings.bot_proxy_url:
+                src = "BOT_PROXY_URL"
+            else:
+                src = "TELEGRAM_PROXY_URL"
             logger.info("openai_proxy_configured", source=src)
         else:
-            logger.warning("openai_proxy_missing")
+            logger.warning(
+                "openai_proxy_missing",
+                hint="Set OPENAI_PROXY_URL or TELEGRAM_PROXY_URL / BOT_PROXY_URL",
+            )
 
     session = create_bot_session(settings)
     bot = Bot(

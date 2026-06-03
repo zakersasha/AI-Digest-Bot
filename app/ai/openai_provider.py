@@ -1,11 +1,11 @@
-import httpx
-from openai import AsyncOpenAI
+from openai import APIConnectionError, AsyncOpenAI
 
 from app.ai.base import AIProvider
 from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
 from app.ai.prompts import SINGLE_DIGEST_PROMPT
 from app.config import get_settings
 from app.i18n import language_name
+from app.utils.http_proxy import create_httpx_client, proxy_host
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,15 +21,25 @@ class OpenAIProvider(AIProvider):
         timeout: float = 180.0,
     ) -> None:
         self._model = model
-        self._http_client: httpx.AsyncClient | None = None
+        self._proxy_url = proxy_url
+        self._http_client = create_httpx_client(proxy_url, timeout)
 
-        client_kwargs: dict = {"api_key": api_key, "timeout": timeout}
+        client_kwargs: dict = {
+            "api_key": api_key,
+            "http_client": self._http_client,
+            "max_retries": 2,
+        }
         if base_url:
             client_kwargs["base_url"] = base_url
+
         if proxy_url:
-            self._http_client = httpx.AsyncClient(proxy=proxy_url, timeout=timeout)
-            client_kwargs["http_client"] = self._http_client
-            logger.info("openai_proxy_enabled", proxy_host=_proxy_host(proxy_url))
+            logger.info(
+                "openai_proxy_enabled",
+                proxy_host=proxy_host(proxy_url),
+                scheme=urlparse_scheme(proxy_url),
+            )
+        else:
+            logger.warning("openai_proxy_disabled")
 
         self._client = AsyncOpenAI(**client_kwargs)
 
@@ -62,8 +72,22 @@ class OpenAIProvider(AIProvider):
             prompt_chars=len(prompt),
             max_tokens=max_tokens,
             context_tokens=limits.max_context_tokens,
+            proxy_enabled=bool(self._proxy_url),
+            proxy_host=proxy_host(self._proxy_url) if self._proxy_url else None,
         )
-        response = await self._client.chat.completions.create(**kwargs)
+
+        try:
+            response = await self._client.chat.completions.create(**kwargs)
+        except APIConnectionError as exc:
+            logger.error(
+                "openai_connection_failed",
+                error=str(exc),
+                cause=str(exc.__cause__) if exc.__cause__ else None,
+                proxy_enabled=bool(self._proxy_url),
+                proxy_host=proxy_host(self._proxy_url) if self._proxy_url else None,
+            )
+            raise
+
         content = response.choices[0].message.content or ""
         logger.info("ai_response", provider=self.name, chars=len(content))
         return content.strip()
@@ -79,15 +103,13 @@ class OpenAIProvider(AIProvider):
         return await self.complete(prompt)
 
     async def aclose(self) -> None:
-        if self._http_client is not None:
-            await self._http_client.aclose()
+        await self._http_client.aclose()
 
 
-def _proxy_host(proxy_url: str) -> str:
+def urlparse_scheme(proxy_url: str) -> str:
     try:
         from urllib.parse import urlparse
 
-        parsed = urlparse(proxy_url)
-        return parsed.hostname or "unknown"
+        return urlparse(proxy_url).scheme or "unknown"
     except Exception:
         return "unknown"
