@@ -11,7 +11,7 @@ from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
 from app.bot.logging_middleware import LoggingMiddleware
 from app.bot.middlewares import ServicesMiddleware
-from app.config import effective_telethon_proxy_url, get_settings
+from app.config import effective_openai_proxy_url, effective_telethon_proxy_url, get_settings
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
 from app.workers.scheduler import scheduler_loop
@@ -69,6 +69,14 @@ async def run_bot() -> None:
         logger.info("telethon_proxy_configured", source=source)
     else:
         logger.warning("telethon_proxy_missing")
+
+    if settings.ai_provider == "openai":
+        openai_proxy = effective_openai_proxy_url(settings)
+        if openai_proxy:
+            src = "OPENAI_PROXY_URL" if settings.openai_proxy_url else "BOT_PROXY_URL"
+            logger.info("openai_proxy_configured", source=src)
+        else:
+            logger.warning("openai_proxy_missing")
 
     session = create_bot_session(settings)
     bot = Bot(

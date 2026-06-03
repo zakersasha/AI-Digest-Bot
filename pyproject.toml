@@ -14,7 +14,7 @@ telethon = "^1.38.1"
 sqlalchemy = { extras = ["asyncio"], version = "^2.0.36" }
 asyncpg = "^0.30.0"
 pydantic-settings = "^2.6.1"
-httpx = "^0.28.1"
+httpx = { version = "^0.28.1", extras = ["socks"] }
 openai = "^1.57.0"
 structlog = "^24.4.0"
 python-dotenv = "^1.0.1"

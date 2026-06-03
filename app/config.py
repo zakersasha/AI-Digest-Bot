@@ -41,6 +41,7 @@ class Settings(BaseSettings):
         description="Cheap model with large context (e.g. gpt-4o-mini, gpt-4.1-mini)",
     )
     openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
+    openai_proxy_url: str | None = Field(default=None, alias="OPENAI_PROXY_URL")
 
     telegram_api_id: int = Field(alias="TELEGRAM_API_ID")
     telegram_api_hash: str = Field(alias="TELEGRAM_API_HASH")
@@ -124,6 +125,11 @@ class Settings(BaseSettings):
 def effective_telethon_proxy_url(settings: Settings) -> str | None:
     """Telethon uses TELEGRAM_PROXY_URL, or BOT_PROXY_URL if the former is unset."""
     return settings.telegram_proxy_url or settings.bot_proxy_url
+
+
+def effective_openai_proxy_url(settings: Settings) -> str | None:
+    """OpenAI HTTP client uses OPENAI_PROXY_URL, or BOT_PROXY_URL if unset."""
+    return settings.openai_proxy_url or settings.bot_proxy_url
 
 
 @lru_cache

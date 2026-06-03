@@ -1,7 +1,7 @@
 from app.ai.base import AIProvider
 from app.ai.local_provider import LocalAIProvider
 from app.ai.openai_provider import OpenAIProvider
-from app.config import Settings
+from app.config import Settings, effective_openai_proxy_url
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,6 +22,7 @@ def create_ai_provider(settings: Settings) -> AIProvider:
             api_key=settings.openai_api_key,
             model=settings.openai_model,
             base_url=settings.openai_base_url,
+            proxy_url=effective_openai_proxy_url(settings),
         )
 
     return LocalAIProvider(

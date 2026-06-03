@@ -1,3 +1,4 @@
+import httpx
 from openai import AsyncOpenAI
 
 from app.ai.base import AIProvider
@@ -16,13 +17,21 @@ class OpenAIProvider(AIProvider):
         api_key: str,
         model: str,
         base_url: str | None = None,
+        proxy_url: str | None = None,
         timeout: float = 180.0,
     ) -> None:
+        self._model = model
+        self._http_client: httpx.AsyncClient | None = None
+
         client_kwargs: dict = {"api_key": api_key, "timeout": timeout}
         if base_url:
             client_kwargs["base_url"] = base_url
+        if proxy_url:
+            self._http_client = httpx.AsyncClient(proxy=proxy_url, timeout=timeout)
+            client_kwargs["http_client"] = self._http_client
+            logger.info("openai_proxy_enabled", proxy_host=_proxy_host(proxy_url))
+
         self._client = AsyncOpenAI(**client_kwargs)
-        self._model = model
 
     @property
     def name(self) -> str:
@@ -68,3 +77,17 @@ class OpenAIProvider(AIProvider):
             language_name=language_name(language),
         )
         return await self.complete(prompt)
+
+    async def aclose(self) -> None:
+        if self._http_client is not None:
+            await self._http_client.aclose()
+
+
+def _proxy_host(proxy_url: str) -> str:
+    try:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(proxy_url)
+        return parsed.hostname or "unknown"
+    except Exception:
+        return "unknown"
