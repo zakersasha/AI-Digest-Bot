@@ -1,7 +1,7 @@
 from openai import AsyncOpenAI
 
 from app.ai.base import AIProvider
-from app.ai.context_limits import truncate_text
+from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
 from app.ai.prompts import SINGLE_DIGEST_PROMPT
 from app.config import get_settings
 from app.i18n import language_name
@@ -16,7 +16,7 @@ class OpenAIProvider(AIProvider):
         api_key: str,
         model: str,
         base_url: str | None = None,
-        timeout: float = 120.0,
+        timeout: float = 180.0,
     ) -> None:
         client_kwargs: dict = {"api_key": api_key, "timeout": timeout}
         if base_url:
@@ -30,23 +30,29 @@ class OpenAIProvider(AIProvider):
 
     async def complete(self, prompt: str) -> str:
         settings = get_settings()
+        limits = settings.digest_ai_limits()
         max_prompt_chars = settings.digest_prompt_max_chars()
         prompt = truncate_text(prompt, max_prompt_chars)
 
+        max_tokens = effective_output_tokens_for_prompt(
+            limits.max_context_tokens,
+            limits.max_output_tokens,
+            len(prompt),
+        )
         kwargs: dict = {
             "model": self._model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
-            "max_tokens": settings.ai_max_output_tokens,
+            "max_tokens": max_tokens,
         }
-        if settings.ai_reasoning_effort:
-            kwargs["reasoning_effort"] = settings.ai_reasoning_effort
+
         logger.info(
             "ai_request",
             provider=self.name,
             model=self._model,
             prompt_chars=len(prompt),
-            max_tokens=settings.ai_max_output_tokens,
+            max_tokens=max_tokens,
+            context_tokens=limits.max_context_tokens,
         )
         response = await self._client.chat.completions.create(**kwargs)
         content = response.choices[0].message.content or ""

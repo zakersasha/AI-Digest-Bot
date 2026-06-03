@@ -53,7 +53,15 @@ async def run_bot() -> None:
     logger.info("database_initialized")
 
     ai = create_ai_provider(settings)
-    logger.info("ai_provider_selected", provider=ai.name)
+    model = settings.openai_model if settings.ai_provider == "openai" else settings.local_ai_model
+    limits = settings.digest_ai_limits()
+    logger.info(
+        "ai_provider_selected",
+        provider=ai.name,
+        model=model,
+        context_tokens=limits.max_context_tokens,
+        max_messages=limits.max_messages,
+    )
 
     telethon_proxy = effective_telethon_proxy_url(settings)
     if telethon_proxy:
