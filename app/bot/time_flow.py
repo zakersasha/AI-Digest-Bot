@@ -53,8 +53,13 @@ async def show_time_picker_callback(
     callback: CallbackQuery,
     state: FSMContext,
     lang: str,
+    *,
+    hour: int | None = None,
 ) -> None:
-    hour = await get_pending_hour(state)
+    if hour is not None:
+        await set_pending_hour(state, hour)
+    else:
+        hour = await get_pending_hour(state)
     await edit_from_callback(
         callback,
         state,
