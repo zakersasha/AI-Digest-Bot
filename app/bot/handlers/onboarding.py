@@ -93,7 +93,7 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
     elif await SourceRepository(session).count_active(user.id) > 0:
         await open_screen(message, state, t(lang, "step_frequency"), frequency_keyboard(lang))
     else:
-        await show_sources_onboarding(message, state, lang)
+        await show_sources_onboarding(message, state, session, lang, message.from_user.id)
 
 
 @router.callback_query(F.data.in_({CB_LANG_RU, CB_LANG_EN}))
@@ -103,7 +103,13 @@ async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSM
     await session.commit()
     await callback.answer()
     if callback.message:
-        await show_sources_onboarding(callback.message, state, lang)
+        await show_sources_onboarding(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+        )
 
 
 @router.callback_query(F.data.startswith("freq:"))
@@ -114,7 +120,13 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
     if code == "back":
         await callback.answer()
         if callback.message:
-            await show_sources_onboarding(callback.message, state, lang)
+            await show_sources_onboarding(
+                callback.message,
+                state,
+                session,
+                lang,
+                callback.from_user.id,
+            )
         return
 
     if code not in ("12h", "1d", "3d", "1w"):
@@ -244,7 +256,13 @@ async def cb_menu_setup(callback: CallbackQuery, session: AsyncSession, state: F
     await session.commit()
     await callback.answer()
     if callback.message:
-        await show_sources_onboarding(callback.message, state, lang)
+        await show_sources_onboarding(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+        )
 
 
 @router.callback_query(F.data == CB_ACTION_DIGEST)

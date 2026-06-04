@@ -20,10 +20,21 @@ def _format_sources_list(sources, lang: str) -> str:
     return "\n".join(lines)
 
 
-async def show_sources_onboarding(target: Message, state: FSMContext, lang: str) -> None:
-    await state.update_data(sources_onboarding=True)
-    await state.set_state(OnboardingStates.entering_sources)
-    await replace_screen(target, state, t(lang, "step_sources"), sources_keyboard(lang, onboarding=True))
+async def show_sources_onboarding(
+    target: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    lang: str,
+    telegram_id: int,
+) -> None:
+    await refresh_sources_screen(
+        target,
+        state,
+        session,
+        lang,
+        telegram_id,
+        onboarding=True,
+    )
 
 
 async def show_sources_manage(
