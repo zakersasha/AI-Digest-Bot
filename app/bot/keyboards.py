@@ -22,7 +22,7 @@ def language_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🇷🇺 Русский", callback_data=CB_LANG_RU),
+                InlineKeyboardButton(text="🇷🇺 Russian", callback_data=CB_LANG_RU),
                 InlineKeyboardButton(text="🇬🇧 English", callback_data=CB_LANG_EN),
             ],
         ]
@@ -49,7 +49,9 @@ def sources_keyboard(
         )
 
     rows.append([InlineKeyboardButton(text=t(lang, "btn_add_source"), callback_data=CB_SRC_ADD)])
-    rows.append([InlineKeyboardButton(text=t(lang, "btn_continue"), callback_data=CB_SRC_DONE)])
+
+    if sources:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_continue"), callback_data=CB_SRC_DONE)])
 
     if not onboarding:
         rows.append([InlineKeyboardButton(text=t(lang, "btn_menu"), callback_data=CB_ACTION_MENU)])
@@ -73,19 +75,19 @@ def frequency_keyboard(lang: str) -> InlineKeyboardMarkup:
     )
 
 
-def time_keyboard(lang: str) -> InlineKeyboardMarkup:
-    hours = [7, 8, 9, 10, 12, 14, 18, 19, 20, 21, 22]
-    rows: list[list[InlineKeyboardButton]] = []
-    row: list[InlineKeyboardButton] = []
-    for hour in hours:
-        row.append(InlineKeyboardButton(text=f"{hour:02d}:00", callback_data=f"time:{hour}"))
-        if len(row) == 3:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
-    rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_TIME_BACK)])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+def time_keyboard(lang: str, hour: int) -> InlineKeyboardMarkup:
+    hour = hour % 24
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="◀️", callback_data="time:dec"),
+                InlineKeyboardButton(text=f"🕐 {hour:02d}:00", callback_data="time:noop"),
+                InlineKeyboardButton(text="▶️", callback_data="time:inc"),
+            ],
+            [InlineKeyboardButton(text=t(lang, "btn_confirm_time"), callback_data="time:confirm")],
+            [InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_TIME_BACK)],
+        ]
+    )
 
 
 def main_menu_keyboard(lang: str) -> InlineKeyboardMarkup:

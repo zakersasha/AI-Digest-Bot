@@ -1,8 +1,6 @@
 import asyncio
 
 from aiogram import F, Router
-from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -14,7 +12,6 @@ from app.bot.keyboards import (
     CB_ACTION_MENU,
     CB_ACTION_SCHEDULE,
     CB_ACTION_SETUP,
-    CB_FREQ_BACK,
     CB_LANG_EN,
     CB_LANG_RU,
     CB_TIME_BACK,
@@ -23,10 +20,17 @@ from app.bot.keyboards import (
     frequency_keyboard,
     language_keyboard,
     main_menu_keyboard,
-    time_keyboard,
 )
+from app.bot.digest_ui import deliver_digest, run_with_digest_progress
 from app.bot.screen import edit_from_callback, open_screen
 from app.bot.sources_flow import show_sources_manage, show_sources_onboarding
+from app.bot.time_flow import (
+    DEFAULT_DELIVERY_HOUR,
+    get_pending_hour,
+    set_pending_hour,
+    show_time_picker,
+    show_time_picker_callback,
+)
 from app.bot.states import OnboardingStates
 from app.config import get_settings
 from app.i18n import DEFAULT_LANG, frequency_label, resolve_lang, t
@@ -34,8 +38,7 @@ from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.digest_service import DigestService
 from app.utils.logging import get_logger
-from app.utils.telegram import split_telegram_message
-
+from app.workers.digest_scheduler import get_digest_scheduler
 logger = get_logger(__name__)
 
 _digest_user_locks: dict[int, asyncio.Lock] = {}
@@ -86,13 +89,7 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
             done_keyboard(lang),
         )
     elif user.digest_frequency:
-        settings = get_settings()
-        await open_screen(
-            message,
-            state,
-            t(lang, "step_time", timezone=settings.default_timezone),
-            time_keyboard(lang),
-        )
+        await show_time_picker(message, state, lang, hour=DEFAULT_DELIVERY_HOUR)
     elif await SourceRepository(session).count_active(user.id) > 0:
         await open_screen(message, state, t(lang, "step_frequency"), frequency_keyboard(lang))
     else:
@@ -112,30 +109,23 @@ async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSM
 @router.callback_query(F.data.startswith("freq:"))
 async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     code = callback.data.split(":")[1]
+    lang = await resolve_lang(session, callback.from_user.id)
+
+    if code == "back":
+        await callback.answer()
+        if callback.message:
+            await show_sources_onboarding(callback.message, state, lang)
+        return
+
     if code not in ("12h", "1d", "3d", "1w"):
         await callback.answer()
         return
 
-    lang = await resolve_lang(session, callback.from_user.id)
     await UserRepository(session).set_frequency(callback.from_user.id, code)
     await session.commit()
     await callback.answer()
 
-    settings = get_settings()
-    await edit_from_callback(
-        callback,
-        state,
-        t(lang, "step_time", timezone=settings.default_timezone),
-        time_keyboard(lang),
-    )
-
-
-@router.callback_query(F.data == CB_FREQ_BACK)
-async def cb_freq_back(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
-    lang = await resolve_lang(session, callback.from_user.id)
-    await callback.answer()
-    if callback.message:
-        await show_sources_onboarding(callback.message, state, lang)
+    await show_time_picker_callback(callback, state, lang, hour=DEFAULT_DELIVERY_HOUR)
 
 
 @router.callback_query(F.data.startswith("time:"))
@@ -148,7 +138,29 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
         await edit_from_callback(callback, state, t(lang, "step_frequency"), frequency_keyboard(lang))
         return
 
-    hour = int(part)
+    if part == "noop":
+        await callback.answer()
+        return
+
+    if part == "dec":
+        hour = await get_pending_hour(state)
+        await set_pending_hour(state, hour - 1)
+        await callback.answer()
+        await show_time_picker_callback(callback, state, lang)
+        return
+
+    if part == "inc":
+        hour = await get_pending_hour(state)
+        await set_pending_hour(state, hour + 1)
+        await callback.answer()
+        await show_time_picker_callback(callback, state, lang)
+        return
+
+    if part != "confirm":
+        await callback.answer()
+        return
+
+    hour = await get_pending_hour(state)
     settings = get_settings()
     repo = UserRepository(session)
     await repo.set_delivery_time(
@@ -164,6 +176,10 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
 
     if not user:
         return
+
+    scheduler = get_digest_scheduler()
+    if scheduler:
+        scheduler.schedule_user(user)
 
     count = await SourceRepository(session).count_active(user.id)
     await edit_from_callback(
@@ -219,6 +235,11 @@ async def cb_menu_schedule(callback: CallbackQuery, session: AsyncSession, state
 @router.callback_query(F.data == CB_ACTION_SETUP)
 async def cb_menu_setup(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if user:
+        scheduler = get_digest_scheduler()
+        if scheduler:
+            scheduler.unschedule_user(user.id)
     await UserRepository(session).reset_onboarding(callback.from_user.id)
     await session.commit()
     await callback.answer()
@@ -246,35 +267,26 @@ async def cb_digest_now(
 
     await callback.answer()
     label = frequency_label(lang, user.digest_frequency)
-    await edit_from_callback(callback, state, t(lang, "digest_generating", label=label), None)
+    await edit_from_callback(callback, state, t(lang, "digest_progress_fetch", label=label, dots="."), None)
 
     async with lock:
         try:
-            content = await digest_service.generate_for_user(
-                user.id,
-                user.digest_frequency,
+
+            async def _generate() -> str:
+                return await digest_service.generate_for_user(
+                    user.id,
+                    user.digest_frequency,
+                    lang,
+                )
+
+            content = await run_with_digest_progress(
+                callback,
+                state,
                 lang,
+                label,
+                _generate,
             )
-            parts = split_telegram_message(content)
-            first = parts[0]
-            if len(parts) > 1:
-                first += f"\n\n_{t(lang, 'digest_truncated')}_"
-            try:
-                await edit_from_callback(
-                    callback,
-                    state,
-                    first,
-                    back_to_menu_keyboard(lang),
-                    parse_mode=ParseMode.MARKDOWN,
-                )
-            except TelegramBadRequest:
-                await edit_from_callback(
-                    callback,
-                    state,
-                    parts[0],
-                    back_to_menu_keyboard(lang),
-                    parse_mode=None,
-                )
+            await deliver_digest(callback, state, lang, content)
         except ValueError as exc:
             await edit_from_callback(callback, state, f"ℹ️ {exc}", back_to_menu_keyboard(lang))
         except RuntimeError as exc:

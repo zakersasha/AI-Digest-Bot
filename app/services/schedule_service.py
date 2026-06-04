@@ -10,23 +10,14 @@ def user_now(user: User) -> datetime:
     return datetime.now(tz=UTC).astimezone(tz)
 
 
-def is_delivery_moment(user: User, now: datetime | None = None) -> bool:
-    if not user.onboarding_complete or user.delivery_hour is None or not user.digest_frequency:
-        return False
-
-    now = now or user_now(user)
-    target_minute = user.delivery_minute or 0
-    if abs(now.minute - target_minute) > 1:
-        return False
-
-    allowed_hours = delivery_hours_for_frequency(user.delivery_hour, user.digest_frequency)
-    return now.hour in allowed_hours
+def delivery_hours_for_user(user: User) -> list[int]:
+    if user.delivery_hour is None or not user.digest_frequency:
+        return []
+    return delivery_hours_for_frequency(user.delivery_hour, user.digest_frequency)
 
 
-def is_digest_due(user: User, now: datetime | None = None) -> bool:
-    if not is_delivery_moment(user, now):
-        return False
-
+def is_digest_period_elapsed(user: User, now: datetime | None = None) -> bool:
+    """True if enough time passed since the last digest for this frequency."""
     period = FREQUENCY_PERIOD.get(user.digest_frequency or "")
     if not period:
         return False
@@ -39,3 +30,12 @@ def is_digest_due(user: User, now: datetime | None = None) -> bool:
     if last.tzinfo is None:
         last = last.replace(tzinfo=UTC)
     return now_utc - last >= period
+
+
+def is_scheduled_user_ready(user: User) -> bool:
+    return bool(
+        user.onboarding_complete
+        and user.digest_frequency
+        and user.delivery_hour is not None
+        and user.language
+    )

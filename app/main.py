@@ -14,7 +14,7 @@ from app.bot.middlewares import ServicesMiddleware
 from app.config import effective_openai_proxy_url, effective_telethon_proxy_url, get_settings
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
-from app.workers.scheduler import scheduler_loop
+from app.workers.digest_scheduler import init_digest_scheduler
 
 logger = get_logger(__name__)
 
@@ -102,12 +102,13 @@ async def run_bot() -> None:
     await set_bot_commands(bot)
     logger.info("bot_starting")
 
-    scheduler_task = asyncio.create_task(scheduler_loop(bot, settings))
+    digest_scheduler = init_digest_scheduler(bot, settings)
+    await digest_scheduler.start()
 
     try:
         await dp.start_polling(bot)
     finally:
-        scheduler_task.cancel()
+        await digest_scheduler.stop()
         await bot.session.close()
 
 

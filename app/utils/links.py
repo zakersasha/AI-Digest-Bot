@@ -6,6 +6,8 @@ _TME_RE = re.compile(
 )
 _AT_RE = re.compile(r"@([a-zA-Z0-9_]{4,32})")
 
+MAX_CHANNELS_PER_MESSAGE = 15
+
 
 def channel_username(telegram_source: str) -> str:
     return telegram_source.lstrip("@").lower()
@@ -18,32 +20,43 @@ def normalize_source(username: str) -> str:
     return f"@{name}"
 
 
+def _links_from_chunk(chunk: str, seen: set[str], found: list[str]) -> None:
+    for match in _TME_RE.finditer(chunk):
+        key = match.group(1).lower()
+        if key not in seen:
+            seen.add(key)
+            found.append(f"@{key}")
+
+    if _TME_RE.search(chunk):
+        return
+
+    for match in _AT_RE.finditer(chunk):
+        key = match.group(1).lower()
+        if key not in seen:
+            seen.add(key)
+            found.append(f"@{key}")
+
+
 def parse_channel_links(text: str) -> list[str]:
-    """Extract @usernames from text (t.me/..., @channel, one or many per message)."""
+    """Extract @usernames from bulk paste (newlines, spaces, commas)."""
+    text = text.strip()
+    if not text:
+        return []
+
     found: list[str] = []
     seen: set[str] = set()
 
-    for token in re.split(r"[\s,;]+", text.strip()):
-        token = token.strip()
-        if not token:
-            continue
+    lines = [line.strip() for line in re.split(r"[\r\n]+", text) if line.strip()]
+    if len(lines) > 1:
+        for line in lines:
+            _links_from_chunk(line, seen, found)
+    else:
+        for token in re.split(r"[\s,;]+", text):
+            token = token.strip()
+            if token:
+                _links_from_chunk(token, seen, found)
 
-        for match in _TME_RE.finditer(token):
-            key = match.group(1).lower()
-            if key not in seen:
-                seen.add(key)
-                found.append(f"@{key}")
-
-        if _TME_RE.search(token):
-            continue
-
-        for match in _AT_RE.finditer(token):
-            key = match.group(1).lower()
-            if key not in seen:
-                seen.add(key)
-                found.append(f"@{key}")
-
-    return found
+    return found[:MAX_CHANNELS_PER_MESSAGE]
 
 
 def channel_url(telegram_source: str) -> str:

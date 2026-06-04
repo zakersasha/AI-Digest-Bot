@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.i18n.strings import STRINGS
 from app.repositories.user_repository import UserRepository
 
-DEFAULT_LANG = "ru"
+DEFAULT_LANG = "en"
 SUPPORTED_LANGS = ("ru", "en")
 
 
@@ -19,6 +19,11 @@ def language_name(lang: str) -> str:
 
 def frequency_label(lang: str, code: str) -> str:
     return t(lang, f"freq_label_{code}")
+
+
+def digest_title(lang: str, frequency: str) -> str:
+    period = t(lang, f"digest_period_{frequency}")
+    return t(lang, "digest_header", period=period)
 
 
 async def resolve_lang(session: AsyncSession, telegram_id: int) -> str:

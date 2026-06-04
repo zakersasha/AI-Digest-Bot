@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.base import AIProvider
 from app.ai.context_limits import pack_messages_for_digest
 from app.config import Settings
-from app.i18n import frequency_label, t
+from app.i18n import digest_title, frequency_label, t
 from app.repositories.digest_repository import DigestRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
@@ -111,7 +111,7 @@ class DigestService:
             logger.error("ai_digest_empty", provider=self._ai.name)
             raise RuntimeError(t(language, "ai_failed", provider=self._ai.name))
 
-        header = t(language, "digest_header", label=label) + "\n\n"
+        header = digest_title(language, frequency) + "\n\n"
         content = header + digest_body
 
         await self._digest_repo.create(user_id, frequency, content)

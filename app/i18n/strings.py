@@ -7,19 +7,19 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "step_sources": (
             "<b>Шаг 2 из 4</b> — каналы для дайджеста\n\n"
-            "Отправьте ссылки на публичные каналы или группы:\n"
-            "• <code>@channel</code>\n"
-            "• <code>https://t.me/channel</code>\n\n"
-            "Можно несколько в одном сообщении (через пробел или с новой строки).\n"
-            "Когда добавите все — нажмите «Продолжить»."
+            "Вставьте ссылки одним сообщением (до 10–15 каналов):\n"
+            "• каждая ссылка с новой строки, или\n"
+            "• через пробел / запятую\n\n"
+            "Формат: <code>@channel</code> или <code>https://t.me/channel</code>\n"
+            "Когда каналы появятся в списке — нажмите «Продолжить»."
         ),
         "sources_manage": (
             "<b>📋 Ваши каналы</b>\n\n"
             "Отправьте новые ссылки в чат или удалите кнопкой 🗑."
         ),
         "sources_add_prompt": (
-            "Отправьте ссылку или @username канала.\n"
-            "Пример: <code>@durov</code> или <code>https://t.me/durov</code>"
+            "Вставьте ссылки (можно несколько сразу, каждая с новой строки).\n"
+            "Пример:\n<code>@durov</code>\n<code>https://t.me/durov</code>"
         ),
         "sources_list_header": "Добавлено каналов: <b>{count}</b>",
         "sources_list_empty": "<i>Пока нет каналов — отправьте ссылку в чат.</i>",
@@ -42,8 +42,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "step_time": (
             "<b>Шаг 4 из 4</b> — во сколько присылать?\n\n"
             "Часовой пояс: <b>{timezone}</b>\n"
+            "Листайте ◀️ ▶️ и нажмите «Готово».\n"
             "При «раз в 12 ч» — в это время и через 12 часов."
         ),
+        "btn_confirm_time": "✅ Готово",
+        "time_picker_hint": "Выбрано: <b>{time}</b>",
         "setup_done": (
             "✅ <b>Готово!</b>\n\n"
             "📋 Каналы: <b>{channels}</b>\n"
@@ -64,11 +67,18 @@ STRINGS: dict[str, dict[str, str]] = {
         "freq_3d": "📅 Раз в 3 дня",
         "freq_1w": "📅 Раз в неделю",
         "freq_label_12h": "за 12 часов",
-        "freq_label_1d": "за сутки",
+        "freq_label_1d": "за 24 часа",
         "freq_label_3d": "за 3 дня",
         "freq_label_1w": "за неделю",
+        "digest_period_12h": "за 12 часов",
+        "digest_period_1d": "за 24 часа",
+        "digest_period_3d": "за 3 дня",
+        "digest_period_1w": "за неделю",
         "digest_generating": "⏳ Генерирую дайджест <b>{label}</b>…",
-        "digest_header": "🔥 *AI Дайджест* ({label})",
+        "digest_progress_fetch": "📡 Загружаю каналы <b>{label}</b>{dots}",
+        "digest_progress_read": "📥 Читаю сообщения <b>{label}</b>{dots}",
+        "digest_progress_ai": "🤖 AI формирует дайджест <b>{label}</b>{dots}",
+        "digest_header": "🔥 *Твой дайджест {period}*",
         "digest_delivered_hint": "Следующий дайджест — по вашему расписанию.",
         "digest_failed": "❌ Не удалось сгенерировать дайджест.",
         "digest_in_progress": "⏳ Дайджест уже генерируется, подождите.",
@@ -93,19 +103,19 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "step_sources": (
             "<b>Step 2 of 4</b> — channels for your digest\n\n"
-            "Send links to public channels or groups:\n"
-            "• <code>@channel</code>\n"
-            "• <code>https://t.me/channel</code>\n\n"
-            "Several per message (space or new line).\n"
-            "When done — tap «Continue»."
+            "Paste links in <b>one message</b> (up to 10–15 channels):\n"
+            "• one link per line, or\n"
+            "• separated by space / comma\n\n"
+            "Format: <code>@channel</code> or <code>https://t.me/channel</code>\n"
+            "When channels appear in the list — tap «Continue»."
         ),
         "sources_manage": (
             "<b>📋 Your channels</b>\n\n"
             "Send new links in chat or remove with 🗑."
         ),
         "sources_add_prompt": (
-            "Send a link or @username.\n"
-            "Example: <code>@durov</code> or <code>https://t.me/durov</code>"
+            "Paste links (several at once, one per line).\n"
+            "Example:\n<code>@durov</code>\n<code>https://t.me/durov</code>"
         ),
         "sources_list_header": "Channels added: <b>{count}</b>",
         "sources_list_empty": "<i>No channels yet — send a link in chat.</i>",
@@ -128,8 +138,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "step_time": (
             "<b>Step 4 of 4</b> — what time to deliver?\n\n"
             "Timezone: <b>{timezone}</b>\n"
+            "Use ◀️ ▶️ then tap «Done».\n"
             "For «every 12h» — at this time and 12 hours later."
         ),
+        "btn_confirm_time": "✅ Done",
+        "time_picker_hint": "Selected: <b>{time}</b>",
         "setup_done": (
             "✅ <b>All set!</b>\n\n"
             "📋 Channels: <b>{channels}</b>\n"
@@ -153,8 +166,15 @@ STRINGS: dict[str, dict[str, str]] = {
         "freq_label_1d": "last 24 hours",
         "freq_label_3d": "last 3 days",
         "freq_label_1w": "last 7 days",
+        "digest_period_12h": "for the last 12 hours",
+        "digest_period_1d": "for the last 24 hours",
+        "digest_period_3d": "for the last 3 days",
+        "digest_period_1w": "for the last week",
         "digest_generating": "⏳ Generating digest <b>{label}</b>…",
-        "digest_header": "🔥 *AI Digest* ({label})",
+        "digest_progress_fetch": "📡 Fetching channels <b>{label}</b>{dots}",
+        "digest_progress_read": "📥 Reading messages <b>{label}</b>{dots}",
+        "digest_progress_ai": "🤖 AI is writing your digest <b>{label}</b>{dots}",
+        "digest_header": "🔥 *Your digest {period}*",
         "digest_delivered_hint": "Next digest — on your schedule.",
         "digest_failed": "❌ Failed to generate digest.",
         "digest_in_progress": "⏳ Digest is already being generated, please wait.",

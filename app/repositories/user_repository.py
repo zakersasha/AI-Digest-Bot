@@ -17,6 +17,10 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id(self, user_id: int) -> User | None:
+        result = await self._session.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
     async def get_or_create(self, telegram_id: int, username: str | None) -> User:
         user = await self.get_by_telegram_id(telegram_id)
         if user:

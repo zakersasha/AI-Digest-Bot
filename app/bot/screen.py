@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardMarkup,
+    LinkPreviewOptions,
     Message,
     ReplyKeyboardMarkup,
 )
@@ -41,10 +42,16 @@ async def replace_screen(
     markup: ScreenMarkup = None,
     *,
     parse_mode: str | None = ParseMode.HTML,
+    link_preview_options: LinkPreviewOptions | None = None,
 ) -> Message:
     """Delete the current screen and send a new message (required after reply keyboards)."""
     await _delete_screen(anchor.bot, state)
-    sent = await anchor.answer(text, reply_markup=markup, parse_mode=parse_mode)
+    sent = await anchor.answer(
+        text,
+        reply_markup=markup,
+        parse_mode=parse_mode,
+        link_preview_options=link_preview_options,
+    )
     await bind_screen(state, sent)
     return sent
 
@@ -56,9 +63,17 @@ async def open_screen(
     markup: ScreenMarkup,
     *,
     parse_mode: str | None = ParseMode.HTML,
+    link_preview_options: LinkPreviewOptions | None = None,
 ) -> Message:
     await _delete_screen(message.bot, state)
-    return await replace_screen(message, state, text, markup, parse_mode=parse_mode)
+    return await replace_screen(
+        message,
+        state,
+        text,
+        markup,
+        parse_mode=parse_mode,
+        link_preview_options=link_preview_options,
+    )
 
 
 async def edit_screen(
@@ -68,6 +83,7 @@ async def edit_screen(
     markup: ScreenMarkup = None,
     *,
     parse_mode: str | None = ParseMode.HTML,
+    link_preview_options: LinkPreviewOptions | None = None,
 ) -> None:
     data = await state.get_data()
     chat_id = data.get("screen_chat_id") or target.chat.id
@@ -80,12 +96,20 @@ async def edit_screen(
             message_id=message_id,
             reply_markup=markup,
             parse_mode=parse_mode,
+            link_preview_options=link_preview_options,
         )
     except TelegramBadRequest as exc:
         if "message is not modified" in str(exc).lower():
             return
         if _is_edit_forbidden(exc):
-            await replace_screen(target, state, text, markup, parse_mode=parse_mode)
+            await replace_screen(
+                target,
+                state,
+                text,
+                markup,
+                parse_mode=parse_mode,
+                link_preview_options=link_preview_options,
+            )
             return
         raise
 
@@ -100,10 +124,18 @@ async def edit_from_callback(
     markup: InlineKeyboardMarkup | None = None,
     *,
     parse_mode: str | None = ParseMode.HTML,
+    link_preview_options: LinkPreviewOptions | None = None,
 ) -> None:
     if callback.message:
         await bind_screen(state, callback.message)
-        await edit_screen(callback.message, state, text, markup, parse_mode=parse_mode)
+        await edit_screen(
+            callback.message,
+            state,
+            text,
+            markup,
+            parse_mode=parse_mode,
+            link_preview_options=link_preview_options,
+        )
 
 
 async def edit_by_state(
@@ -113,6 +145,7 @@ async def edit_by_state(
     markup: InlineKeyboardMarkup | None = None,
     *,
     parse_mode: str | None = ParseMode.HTML,
+    link_preview_options: LinkPreviewOptions | None = None,
 ) -> None:
     data = await state.get_data()
     chat_id = data.get("screen_chat_id")
@@ -126,6 +159,7 @@ async def edit_by_state(
             message_id=message_id,
             reply_markup=markup,
             parse_mode=parse_mode,
+            link_preview_options=link_preview_options,
         )
     except TelegramBadRequest as exc:
         if "message is not modified" not in str(exc).lower():
