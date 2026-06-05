@@ -33,15 +33,12 @@ _SOURCE_STATES = (
 )
 
 
-@router.message(StateFilter(*_SOURCE_STATES), F.text)
+@router.message(StateFilter(*_SOURCE_STATES), F.text, ~F.text.startswith("/"))
 async def msg_source_links(
     message: Message,
     state: FSMContext,
     session: AsyncSession,
 ) -> None:
-    if message.text and message.text.startswith("/"):
-        return
-
     lang = await resolve_lang(session, message.from_user.id)
     data = await state.get_data()
     onboarding = data.get("sources_onboarding", True)
