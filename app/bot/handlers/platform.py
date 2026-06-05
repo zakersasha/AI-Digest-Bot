@@ -172,6 +172,13 @@ async def msg_gmail_code(
         )
         await open_screen(message, state, t(lang, "gmail_link_failed"), None)
         return
+    except RuntimeError as exc:
+        if "SESSION_ENCRYPTION_KEY" in str(exc):
+            await open_screen(message, state, t(lang, "encryption_key_missing"), None)
+            return
+        logger.exception("gmail_link_failed", telegram_id=message.from_user.id)
+        await open_screen(message, state, t(lang, "gmail_link_failed"), None)
+        return
     except Exception:
         logger.exception("gmail_link_failed", telegram_id=message.from_user.id)
         await open_screen(message, state, t(lang, "gmail_link_failed"), None)

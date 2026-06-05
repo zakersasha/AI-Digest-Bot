@@ -129,6 +129,10 @@ STRINGS: dict[str, dict[str, str]] = {
             "❌ Gmail API не включён в Google Cloud.\n"
             "APIs & Services → Library → Gmail API → Enable, затем подключите Gmail заново."
         ),
+        "encryption_key_missing": (
+            "❌ На сервере не задан SESSION_ENCRYPTION_KEY в .env.\n"
+            "Добавьте любую длинную случайную строку и перезапустите бота."
+        ),
         "btn_gmail_paste": "📋 Вставить ссылку",
         "gmail_linked": "✅ Gmail подключён: <b>{email}</b>",
         "gmail_not_linked": "❌ Сначала подключите Gmail.",
@@ -279,6 +283,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "gmail_api_disabled": (
             "❌ Gmail API is not enabled in Google Cloud.\n"
             "APIs & Services → Library → Gmail API → Enable, then connect Gmail again."
+        ),
+        "encryption_key_missing": (
+            "❌ SESSION_ENCRYPTION_KEY is not set in server .env.\n"
+            "Add any long random string and restart the bot."
         ),
         "btn_gmail_paste": "📋 Paste link",
         "gmail_linked": "✅ Gmail connected: <b>{email}</b>",
