@@ -73,8 +73,9 @@ async def show_platforms_menu(
     state: FSMContext,
     session: AsyncSession,
     lang: str,
+    telegram_id: int,
 ) -> None:
-    user = await UserRepository(session).get_by_telegram_id(target.from_user.id)
+    user = await UserRepository(session).get_by_telegram_id(telegram_id)
     if not user:
         return
 
@@ -102,8 +103,21 @@ async def show_platforms_menu(
                 ]
             )
 
-    await state.clear()
-    await replace_screen(target, state, "\n\n".join(lines), InlineKeyboardMarkup(inline_keyboard=rows))
+    text = "\n\n".join(lines)
+    markup = InlineKeyboardMarkup(inline_keyboard=rows)
+
+    data = await state.get_data()
+    screen_chat_id = data.get("screen_chat_id")
+    screen_message_id = data.get("screen_message_id")
+    await state.set_state(None)
+    if screen_chat_id and screen_message_id:
+        await state.update_data(
+            screen_chat_id=screen_chat_id,
+            screen_message_id=screen_message_id,
+        )
+        await edit_by_state(target.bot, state, text, markup)
+    else:
+        await replace_screen(target, state, text, markup)
 
 
 def _telegram_keyboard(lang: str, sources, *, has_channels: bool) -> InlineKeyboardMarkup:
@@ -252,7 +266,7 @@ async def show_schedule_frequency(
 ) -> None:
     from app.bot.keyboards import frequency_keyboard
 
-    await state.update_data(scheduling_platform=platform)
+    await state.update_data(scheduling_platform=platform, active_platform=platform)
     await edit_from_callback(
         callback,
         state,

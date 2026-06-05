@@ -49,10 +49,9 @@ _digest_locks: dict[int, asyncio.Lock] = {}
 @router.callback_query(F.data == CB_ACTION_MENU)
 async def cb_platforms_menu(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
-    await state.clear()
     await callback.answer()
     if callback.message:
-        await show_platforms_menu(callback.message, state, session, lang)
+        await show_platforms_menu(callback.message, state, session, lang, callback.from_user.id)
 
 
 @router.callback_query(F.data == CB_PLATFORM_TELEGRAM)
@@ -90,6 +89,7 @@ async def cb_start_schedule(callback: CallbackQuery, state: FSMContext, session:
         await callback.answer(t(lang, "platform_connect_first"), show_alert=True)
         return
 
+    await state.update_data(active_platform=platform)
     await callback.answer()
     await show_schedule_frequency(callback, state, lang, platform)
 
@@ -99,7 +99,7 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
     code = callback.data.split(":")[1]
     lang = await resolve_lang(session, callback.from_user.id)
     data = await state.get_data()
-    platform = data.get("scheduling_platform")
+    platform = data.get("scheduling_platform") or data.get("active_platform")
     if not platform:
         await callback.answer()
         return
@@ -123,6 +123,7 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
         await callback.answer()
         return
 
+    await state.update_data(scheduling_platform=platform)
     await PlatformSettingsRepository(session).set_frequency(user.id, platform, code)
     await session.commit()
     await callback.answer()
@@ -133,7 +134,7 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
 async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     data = await state.get_data()
-    platform = data.get("scheduling_platform")
+    platform = data.get("scheduling_platform") or data.get("active_platform")
     if not platform:
         await callback.answer()
         return

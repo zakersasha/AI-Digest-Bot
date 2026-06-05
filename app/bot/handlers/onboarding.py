@@ -27,7 +27,7 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
         await open_screen(message, state, t(DEFAULT_LANG, "welcome"), language_keyboard())
         return
 
-    await show_platforms_menu(message, state, session, user.language)
+    await show_platforms_menu(message, state, session, user.language, message.from_user.id)
 
 
 @router.callback_query(F.data.in_({CB_LANG_RU, CB_LANG_EN}))
@@ -39,7 +39,7 @@ async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSM
     await session.commit()
     await callback.answer()
     if callback.message:
-        await show_platforms_menu(callback.message, state, session, lang)
+        await show_platforms_menu(callback.message, state, session, lang, callback.from_user.id)
 
 
 @router.message(Command("menu"))
@@ -47,6 +47,6 @@ async def cmd_menu(message: Message, session: AsyncSession, state: FSMContext) -
     lang = await resolve_lang(session, message.from_user.id)
     user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
     if user and user.language:
-        await show_platforms_menu(message, state, session, lang)
+        await show_platforms_menu(message, state, session, lang, message.from_user.id)
     else:
         await open_screen(message, state, t(DEFAULT_LANG, "welcome"), language_keyboard())
