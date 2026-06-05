@@ -2,7 +2,7 @@ import httpx
 
 from app.ai.base import AIProvider
 from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
-from app.ai.prompts import SINGLE_DIGEST_PROMPT
+from app.ai.prompts import GMAIL_DIGEST_PROMPT, TELEGRAM_DIGEST_PROMPT
 from app.ai.response import completion_finish_reason, extract_chat_content
 from app.config import get_settings
 from app.i18n import language_name
@@ -109,11 +109,18 @@ class LocalAIProvider(AIProvider):
         logger.info("ai_response", provider=self.name, chars=0)
         return ""
 
-    async def generate_digest(self, message_blocks: list[str], language: str) -> str:
+    async def generate_digest(
+        self,
+        message_blocks: list[str],
+        language: str,
+        *,
+        platform: str = "telegram",
+    ) -> str:
         if not message_blocks:
             return ""
         joined = "\n\n".join(message_blocks)
-        prompt = SINGLE_DIGEST_PROMPT.format(
+        template = GMAIL_DIGEST_PROMPT if platform == "gmail" else TELEGRAM_DIGEST_PROMPT
+        prompt = template.format(
             messages=joined,
             language_name=language_name(language),
         )

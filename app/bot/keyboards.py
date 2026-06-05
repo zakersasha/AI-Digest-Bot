@@ -12,10 +12,18 @@ CB_SRC_REMOVE = "src:rm"
 CB_FREQ_BACK = "freq:back"
 CB_TIME_BACK = "time:back"
 CB_ACTION_CHANNELS = "act:channels"
+CB_ACTION_GMAIL = "act:gmail"
+CB_ACTION_PLATFORM = "act:platform"
 CB_ACTION_SCHEDULE = "act:schedule"
 CB_ACTION_DIGEST = "act:digest"
 CB_ACTION_SETUP = "act:setup"
 CB_ACTION_MENU = "act:menu"
+CB_PLATFORM_TG = "plat:tg"
+CB_PLATFORM_GMAIL = "plat:gmail"
+CB_GMAIL_CONNECT = "gmail:connect"
+CB_GMAIL_DISCONNECT = "gmail:disconnect"
+CB_GMAIL_CONTINUE = "gmail:done"
+CB_GMAIL_CHECK = "gmail:check"
 
 
 def language_keyboard() -> InlineKeyboardMarkup:
@@ -90,14 +98,37 @@ def time_keyboard(lang: str, hour: int) -> InlineKeyboardMarkup:
     )
 
 
-def main_menu_keyboard(lang: str) -> InlineKeyboardMarkup:
+def platform_keyboard(lang: str, current: str | None = None) -> InlineKeyboardMarkup:
+    tg_mark = " ✓" if current == "telegram" else ""
+    gmail_mark = " ✓" if current == "gmail" else ""
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=f"📱 {t(lang, 'platform_telegram')}{tg_mark}",
+                callback_data=CB_PLATFORM_TG,
+            ),
+            InlineKeyboardButton(
+                text=f"📧 {t(lang, 'platform_gmail')}{gmail_mark}",
+                callback_data=CB_PLATFORM_GMAIL,
+            ),
+        ],
+    ]
+    if current:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_menu"), callback_data=CB_ACTION_MENU)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def main_menu_keyboard(lang: str, platform: str = "telegram") -> InlineKeyboardMarkup:
+    source_btn = t(lang, "menu_gmail") if platform == "gmail" else t(lang, "menu_channels")
+    source_cb = CB_ACTION_GMAIL if platform == "gmail" else CB_ACTION_CHANNELS
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text=t(lang, "menu_channels"), callback_data=CB_ACTION_CHANNELS),
-                InlineKeyboardButton(text=t(lang, "menu_schedule"), callback_data=CB_ACTION_SCHEDULE),
+                InlineKeyboardButton(text=t(lang, "menu_platform"), callback_data=CB_ACTION_PLATFORM),
+                InlineKeyboardButton(text=source_btn, callback_data=source_cb),
             ],
             [
+                InlineKeyboardButton(text=t(lang, "menu_schedule"), callback_data=CB_ACTION_SCHEDULE),
                 InlineKeyboardButton(text=t(lang, "menu_digest_now"), callback_data=CB_ACTION_DIGEST),
             ],
             [
@@ -107,7 +138,7 @@ def main_menu_keyboard(lang: str) -> InlineKeyboardMarkup:
     )
 
 
-def done_keyboard(lang: str) -> InlineKeyboardMarkup:
+def done_keyboard(lang: str, platform: str = "telegram") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=t(lang, "menu_digest_now"), callback_data=CB_ACTION_DIGEST)],

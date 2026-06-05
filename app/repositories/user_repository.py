@@ -102,6 +102,52 @@ class UserRepository:
         await self._session.flush()
         return user
 
+    async def set_content_platform(self, telegram_id: int, platform: str) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.content_platform = platform
+        await self._session.flush()
+        return user
+
+    async def save_gmail_tokens(
+        self,
+        telegram_id: int,
+        tokens: dict,
+        email: str,
+    ) -> User | None:
+        from app.services.gmail_service import GmailService
+
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.gmail_tokens_encrypted = GmailService.encrypt_tokens(tokens)
+        user.gmail_email = email
+        user.gmail_linked_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return user
+
+    async def update_gmail_tokens(self, user_id: int, tokens: dict) -> None:
+        from app.services.gmail_service import GmailService
+
+        result = await self._session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one()
+        user.gmail_tokens_encrypted = GmailService.encrypt_tokens(tokens)
+        await self._session.flush()
+
+    async def clear_gmail(self, telegram_id: int) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.gmail_tokens_encrypted = None
+        user.gmail_email = None
+        user.gmail_linked_at = None
+        await self._session.flush()
+        return user
+
+    def has_gmail(self, user: User) -> bool:
+        return bool(user.gmail_tokens_encrypted)
+
     async def clear_telethon_session(self, telegram_id: int) -> User | None:
         user = await self.get_by_telegram_id(telegram_id)
         if not user:

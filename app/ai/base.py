@@ -7,7 +7,13 @@ class AIProvider(ABC):
         """Send a prompt and return raw text response."""
 
     @abstractmethod
-    async def generate_digest(self, message_blocks: list[str], language: str) -> str:
+    async def generate_digest(
+        self,
+        message_blocks: list[str],
+        language: str,
+        *,
+        platform: str = "telegram",
+    ) -> str:
         """Generate a digest from pre-packed message blocks (one API call)."""
 
     @property

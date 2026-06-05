@@ -1,17 +1,17 @@
 from collections import defaultdict
 
-from app.services.telethon_service import ChannelMessage
+from app.services.content_message import ContentMessage
 
 
 def interleave_messages_by_source(
-    messages: list[ChannelMessage],
+    messages: list[ContentMessage],
     limit: int,
-) -> list[ChannelMessage]:
+) -> list[ContentMessage]:
     """Round-robin newest messages across channels so multi-source digests stay balanced."""
     if limit <= 0 or not messages:
         return []
 
-    buckets: dict[str, list[ChannelMessage]] = defaultdict(list)
+    buckets: dict[str, list[ContentMessage]] = defaultdict(list)
     for msg in messages:
         buckets[msg.source].append(msg)
 
@@ -19,7 +19,7 @@ def interleave_messages_by_source(
         bucket.sort(key=lambda m: m.date, reverse=True)
 
     sources = sorted(buckets.keys())
-    selected: list[ChannelMessage] = []
+    selected: list[ContentMessage] = []
     round_idx = 0
 
     while len(selected) < limit:

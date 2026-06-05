@@ -21,9 +21,10 @@ def frequency_label(lang: str, code: str) -> str:
     return t(lang, f"freq_label_{code}")
 
 
-def digest_title(lang: str, frequency: str) -> str:
+def digest_title(lang: str, frequency: str, *, platform: str = "telegram") -> str:
     period = t(lang, f"digest_period_{frequency}")
-    return t(lang, "digest_header", period=period)
+    key = "digest_header_gmail" if platform == "gmail" else "digest_header"
+    return t(lang, key, period=period)
 
 
 async def resolve_lang(session: AsyncSession, telegram_id: int) -> str:

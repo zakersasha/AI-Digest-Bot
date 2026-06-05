@@ -23,6 +23,7 @@ from app.bot.keyboards import (
 )
 from app.bot.digest_ui import deliver_digest, run_with_digest_progress
 from app.bot.screen import edit_from_callback, open_screen
+from app.bot.platform_flow import show_gmail_screen, show_platform_picker
 from app.bot.sources_flow import show_sources_manage, show_sources_onboarding
 from app.bot.time_flow import (
     DEFAULT_DELIVERY_HOUR,
@@ -53,6 +54,14 @@ def _format_time(hour: int, minute: int) -> str:
 def _format_setup_summary(user, lang: str, channel_count: int) -> str:
     freq = t(lang, f"freq_{user.digest_frequency}") if user.digest_frequency else "—"
     time_str = _format_time(user.delivery_hour or 0, user.delivery_minute or 0)
+    if (user.content_platform or "telegram") == "gmail":
+        return t(
+            lang,
+            "setup_done_gmail",
+            email=user.gmail_email or "—",
+            frequency=freq,
+            time=time_str,
+        )
     return t(
         lang,
         "setup_done",
@@ -60,6 +69,62 @@ def _format_setup_summary(user, lang: str, channel_count: int) -> str:
         frequency=freq,
         time=time_str,
     )
+
+
+def _main_menu_kb(lang: str, user) -> "InlineKeyboardMarkup":
+    from aiogram.types import InlineKeyboardMarkup
+
+    return main_menu_keyboard(lang, user.content_platform or "telegram")
+
+
+async def _resume_onboarding(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    user,
+    lang: str,
+) -> None:
+    platform = user.content_platform or "telegram"
+
+    if user.delivery_hour is not None and user.digest_frequency:
+        count = await SourceRepository(session).count_active(user.id)
+        await open_screen(
+            message,
+            state,
+            _format_setup_summary(user, lang, count),
+            done_keyboard(lang),
+        )
+        return
+
+    if user.digest_frequency:
+        await show_time_picker(message, state, lang, hour=DEFAULT_DELIVERY_HOUR)
+        return
+
+    has_channels = await SourceRepository(session).count_active(user.id) > 0
+    has_gmail = UserRepository(session).has_gmail(user)
+    if not has_channels and not has_gmail:
+        await show_platform_picker(message, state, lang)
+        return
+
+    if platform == "gmail":
+        repo = UserRepository(session)
+        if repo.has_gmail(user):
+            await open_screen(message, state, t(lang, "step_frequency"), frequency_keyboard(lang))
+        else:
+            await show_gmail_screen(
+                message,
+                state,
+                session,
+                lang,
+                message.from_user.id,
+                onboarding=True,
+            )
+        return
+
+    if has_channels:
+        await open_screen(message, state, t(lang, "step_frequency"), frequency_keyboard(lang))
+    else:
+        await show_sources_onboarding(message, state, session, lang, message.from_user.id)
 
 
 @router.message(CommandStart())
@@ -78,22 +143,10 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
 
     lang = user.language
     if user.onboarding_complete:
-        await open_screen(message, state, t(lang, "main_menu"), main_menu_keyboard(lang))
+        await open_screen(message, state, t(lang, "main_menu"), _main_menu_kb(lang, user))
         return
 
-    if user.delivery_hour is not None and user.digest_frequency:
-        await open_screen(
-            message,
-            state,
-            _format_setup_summary(user, lang, await SourceRepository(session).count_active(user.id)),
-            done_keyboard(lang),
-        )
-    elif user.digest_frequency:
-        await show_time_picker(message, state, lang, hour=DEFAULT_DELIVERY_HOUR)
-    elif await SourceRepository(session).count_active(user.id) > 0:
-        await open_screen(message, state, t(lang, "step_frequency"), frequency_keyboard(lang))
-    else:
-        await show_sources_onboarding(message, state, session, lang, message.from_user.id)
+    await _resume_onboarding(message, state, session, user, lang)
 
 
 @router.callback_query(F.data.in_({CB_LANG_RU, CB_LANG_EN}))
@@ -103,13 +156,7 @@ async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSM
     await session.commit()
     await callback.answer()
     if callback.message:
-        await show_sources_onboarding(
-            callback.message,
-            state,
-            session,
-            lang,
-            callback.from_user.id,
-        )
+        await show_platform_picker(callback.message, state, lang)
 
 
 @router.callback_query(F.data.startswith("freq:"))
@@ -119,7 +166,20 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
 
     if code == "back":
         await callback.answer()
-        if callback.message:
+        if not callback.message:
+            return
+        user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+        platform = (user.content_platform if user else None) or "telegram"
+        if platform == "gmail":
+            await show_gmail_screen(
+                callback.message,
+                state,
+                session,
+                lang,
+                callback.from_user.id,
+                onboarding=bool(user and not user.onboarding_complete),
+            )
+        else:
             await show_sources_onboarding(
                 callback.message,
                 state,
@@ -207,7 +267,9 @@ async def cb_main_menu(callback: CallbackQuery, session: AsyncSession, state: FS
     lang = await resolve_lang(session, callback.from_user.id)
     await state.clear()
     await callback.answer()
-    await edit_from_callback(callback, state, t(lang, "main_menu"), main_menu_keyboard(lang))
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    platform = (user.content_platform if user else None) or "telegram"
+    await edit_from_callback(callback, state, t(lang, "main_menu"), main_menu_keyboard(lang, platform))
 
 
 @router.callback_query(F.data == CB_ACTION_CHANNELS)
@@ -241,7 +303,8 @@ async def cb_menu_schedule(callback: CallbackQuery, session: AsyncSession, state
         last=last,
     )
     await callback.answer()
-    await edit_from_callback(callback, state, text, main_menu_keyboard(lang))
+    platform = user.content_platform or "telegram"
+    await edit_from_callback(callback, state, text, main_menu_keyboard(lang, platform))
 
 
 @router.callback_query(F.data == CB_ACTION_SETUP)
@@ -256,13 +319,7 @@ async def cb_menu_setup(callback: CallbackQuery, session: AsyncSession, state: F
     await session.commit()
     await callback.answer()
     if callback.message:
-        await show_sources_onboarding(
-            callback.message,
-            state,
-            session,
-            lang,
-            callback.from_user.id,
-        )
+        await show_platform_picker(callback.message, state, lang)
 
 
 @router.callback_query(F.data == CB_ACTION_DIGEST)
@@ -275,7 +332,16 @@ async def cb_digest_now(
     lang = await resolve_lang(session, callback.from_user.id)
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user or not user.onboarding_complete or not user.digest_frequency:
-        await callback.answer(t(lang, "pick_channel_first"), show_alert=True)
+        await callback.answer(t(lang, "pick_source_first"), show_alert=True)
+        return
+
+    platform = user.content_platform or "telegram"
+    repo = UserRepository(session)
+    if platform == "gmail" and not repo.has_gmail(user):
+        await callback.answer(t(lang, "gmail_not_linked"), show_alert=True)
+        return
+    if platform == "telegram" and await SourceRepository(session).count_active(user.id) == 0:
+        await callback.answer(t(lang, "no_channels_selected"), show_alert=True)
         return
 
     lock = _digest_user_locks.setdefault(callback.from_user.id, asyncio.Lock())
@@ -285,7 +351,8 @@ async def cb_digest_now(
 
     await callback.answer()
     label = frequency_label(lang, user.digest_frequency)
-    await edit_from_callback(callback, state, t(lang, "digest_progress_fetch", label=label, dots="."), None)
+    progress_key = "digest_progress_fetch_gmail" if platform == "gmail" else "digest_progress_fetch"
+    await edit_from_callback(callback, state, t(lang, progress_key, label=label, dots="."), None)
 
     async with lock:
         try:
@@ -303,6 +370,7 @@ async def cb_digest_now(
                 lang,
                 label,
                 _generate,
+                platform=platform,
             )
             await deliver_digest(callback, state, lang, content)
         except ValueError as exc:
@@ -324,6 +392,7 @@ async def cmd_menu(message: Message, session: AsyncSession, state: FSMContext) -
     lang = await resolve_lang(session, message.from_user.id)
     user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
     if user and user.onboarding_complete:
-        await open_screen(message, state, t(lang, "main_menu"), main_menu_keyboard(lang))
+        platform = user.content_platform or "telegram"
+        await open_screen(message, state, t(lang, "main_menu"), main_menu_keyboard(lang, platform))
     else:
         await open_screen(message, state, t(DEFAULT_LANG, "welcome"), language_keyboard())

@@ -33,9 +33,15 @@ def is_digest_period_elapsed(user: User, now: datetime | None = None) -> bool:
 
 
 def is_scheduled_user_ready(user: User) -> bool:
-    return bool(
+    if not (
         user.onboarding_complete
         and user.digest_frequency
         and user.delivery_hour is not None
         and user.language
-    )
+    ):
+        return False
+
+    platform = user.content_platform or "telegram"
+    if platform == "gmail":
+        return bool(user.gmail_tokens_encrypted)
+    return True

@@ -43,7 +43,25 @@ class Settings(BaseSettings):
     openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
     openai_proxy_url: str | None = Field(default=None, alias="OPENAI_PROXY_URL")
 
-    @field_validator("openai_base_url", "openai_proxy_url", "bot_proxy_url", "telegram_proxy_url", mode="before")
+    gmail_client_id: str = Field(default="", alias="GMAIL_CLIENT_ID")
+    gmail_client_secret: str = Field(default="", alias="GMAIL_CLIENT_SECRET")
+    gmail_redirect_uri: str = Field(
+        default="http://localhost:8080/oauth/gmail/callback",
+        alias="GMAIL_REDIRECT_URI",
+    )
+    gmail_oauth_host: str = Field(default="0.0.0.0", alias="GMAIL_OAUTH_HOST")
+    gmail_oauth_port: int = Field(default=8080, alias="GMAIL_OAUTH_PORT")
+    gmail_max_messages: int = Field(default=50, alias="GMAIL_MAX_MESSAGES")
+
+    @field_validator(
+        "openai_base_url",
+        "openai_proxy_url",
+        "bot_proxy_url",
+        "telegram_proxy_url",
+        "gmail_client_id",
+        "gmail_client_secret",
+        mode="before",
+    )
     @classmethod
     def empty_str_to_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

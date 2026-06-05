@@ -27,6 +27,10 @@ _USER_MIGRATIONS = (
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS telethon_session_encrypted TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_phone VARCHAR(32)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS telethon_linked_at TIMESTAMPTZ",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS content_platform VARCHAR(16) DEFAULT 'telegram'",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_tokens_encrypted TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_email VARCHAR(255)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_linked_at TIMESTAMPTZ",
 )
 
 

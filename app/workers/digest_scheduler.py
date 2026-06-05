@@ -49,10 +49,6 @@ class DigestScheduler:
             logger.info("apscheduler_stopped")
 
     async def reload_all(self) -> None:
-        if not self._settings.telegram_session_string:
-            logger.warning("scheduler_skipped_no_telethon_session")
-            return
-
         for job in self._scheduler.get_jobs():
             if job.id.startswith(f"{_JOB_PREFIX}:"):
                 self._scheduler.remove_job(job.id)
@@ -115,9 +111,6 @@ class DigestScheduler:
             self.schedule_user(user)
 
     async def _deliver_scheduled_digest(self, user_id: int) -> None:
-        if not self._settings.telegram_session_string:
-            return
-
         async with async_session_factory() as session:
             user = await UserRepository(session).get_by_id(user_id)
             if not user or not is_scheduled_user_ready(user):

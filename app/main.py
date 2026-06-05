@@ -14,6 +14,7 @@ from app.bot.middlewares import ServicesMiddleware
 from app.config import effective_openai_proxy_url, effective_telethon_proxy_url, get_settings
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
+from app.web.gmail_oauth import start_oauth_server
 from app.workers.digest_scheduler import init_digest_scheduler
 
 logger = get_logger(__name__)
@@ -105,11 +106,22 @@ async def run_bot() -> None:
     digest_scheduler = init_digest_scheduler(bot, settings)
     await digest_scheduler.start()
 
+    oauth_runner = None
+    if settings.gmail_client_id and settings.gmail_client_secret:
+        oauth_runner = await start_oauth_server(settings)
+        logger.info("gmail_oauth_enabled", redirect_uri=settings.gmail_redirect_uri)
+    else:
+        logger.info("gmail_oauth_disabled")
+
     try:
         await dp.start_polling(bot)
     finally:
         await digest_scheduler.stop()
+        if oauth_runner:
+            await oauth_runner.cleanup()
         await bot.session.close()
+        if hasattr(ai, "aclose"):
+            await ai.aclose()
 
 
 def main() -> None:

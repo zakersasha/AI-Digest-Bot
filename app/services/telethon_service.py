@@ -13,19 +13,13 @@ from telethon.errors import (
     UsernameNotOccupiedError,
 )
 
+from app.services.content_message import ContentMessage
+from app.utils.links import message_url
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 _USERNAME_PATTERN = re.compile(r"^@?[a-zA-Z][a-zA-Z0-9_]{3,31}$")
-
-
-@dataclass
-class ChannelMessage:
-    text: str
-    source: str
-    date: datetime
-    message_id: int
 
 
 @dataclass
@@ -94,10 +88,10 @@ class TelethonService:
         self,
         telegram_source: str,
         since: datetime,
-    ) -> list[ChannelMessage]:
+    ) -> list[ContentMessage]:
         username = self.normalize_source(telegram_source)
         entity = await self._client.get_entity(username)
-        messages: list[ChannelMessage] = []
+        messages: list[ContentMessage] = []
 
         try:
             async for message in self._client.iter_messages(entity, limit=self._max_messages):
@@ -110,11 +104,12 @@ class TelethonService:
                 if not text:
                     continue
                 messages.append(
-                    ChannelMessage(
+                    ContentMessage(
                         text=text,
                         source=username,
                         date=msg_date,
-                        message_id=message.id,
+                        message_id=str(message.id),
+                        post_url=message_url(username, message.id),
                     )
                 )
         except FloodWaitError as exc:

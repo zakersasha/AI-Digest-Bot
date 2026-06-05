@@ -24,17 +24,30 @@ _PROGRESS_KEYS = (
 )
 
 
+def _progress_keys(platform: str) -> tuple[str, str, str]:
+    if platform == "gmail":
+        return (
+            "digest_progress_fetch_gmail",
+            "digest_progress_read_gmail",
+            "digest_progress_ai",
+        )
+    return _PROGRESS_KEYS
+
+
 async def _progress_loop(
     callback: CallbackQuery,
     state: FSMContext,
     lang: str,
     label: str,
+    *,
+    platform: str = "telegram",
 ) -> None:
+    keys = _progress_keys(platform)
     frame = 0
     tick = 0
     while True:
         dots = "." * (tick % 3 + 1)
-        key = _PROGRESS_KEYS[frame % len(_PROGRESS_KEYS)]
+        key = keys[frame % len(keys)]
         try:
             await edit_from_callback(
                 callback,
@@ -56,8 +69,12 @@ async def run_with_digest_progress(
     lang: str,
     label: str,
     work: Callable[[], Awaitable[T]],
+    *,
+    platform: str = "telegram",
 ) -> T:
-    progress = asyncio.create_task(_progress_loop(callback, state, lang, label))
+    progress = asyncio.create_task(
+        _progress_loop(callback, state, lang, label, platform=platform)
+    )
     try:
         return await work()
     finally:

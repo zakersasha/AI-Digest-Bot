@@ -94,6 +94,45 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "last_never": "ещё не было",
         "channels_saved": "✅ Каналы сохранены ({count})",
+        "step_platform": (
+            "<b>Шаг 2 из 4</b> — откуда собирать дайджест?\n\n"
+            "• <b>Telegram</b> — публичные каналы\n"
+            "• <b>Gmail</b> — входящие письма"
+        ),
+        "platform_menu": (
+            "<b>📱 Платформа</b>\n\n"
+            "Сейчас: <b>{platform}</b>\n\n"
+            "Дайджест собирается из выбранного источника."
+        ),
+        "platform_telegram": "Telegram",
+        "platform_gmail": "Gmail",
+        "menu_platform": "📱 Платформа",
+        "menu_gmail": "📧 Gmail",
+        "gmail_connect": (
+            "<b>📧 Подключение Gmail</b>\n\n"
+            "1. Нажмите кнопку ниже и разрешите доступ только на чтение.\n"
+            "2. Вернитесь в бот и нажмите «Продолжить».\n\n"
+            "<i>OAuth callback:</i> <code>{redirect}</code>"
+        ),
+        "gmail_linked": "✅ Gmail подключён: <b>{email}</b>",
+        "gmail_not_linked": "❌ Сначала подключите Gmail.",
+        "gmail_not_configured": "❌ Gmail OAuth не настроен на сервере (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET).",
+        "gmail_fetch_failed": "❌ Не удалось загрузить письма из Gmail.",
+        "gmail_disconnected": "Gmail отключён.",
+        "btn_gmail_connect": "🔗 Подключить Gmail",
+        "btn_gmail_disconnect": "🔌 Отключить Gmail",
+        "btn_gmail_continue": "✅ Продолжить",
+        "no_emails": "ℹ️ За период «{label}» писем нет.",
+        "digest_header_gmail": "🔥 *Твой email-дайджест {period}*",
+        "digest_progress_fetch_gmail": "📡 Загружаю Gmail <b>{label}</b>{dots}",
+        "digest_progress_read_gmail": "📥 Читаю письма <b>{label}</b>{dots}",
+        "setup_done_gmail": (
+            "✅ <b>Готово!</b>\n\n"
+            "📧 Gmail: <b>{email}</b>\n"
+            "⏱ Расписание: <b>{frequency}</b> в <b>{time}</b>\n\n"
+            "Первый дайджест придёт по расписанию. Можно получить сейчас — кнопка ниже."
+        ),
+        "pick_source_first": "❌ Настройте источник: каналы или Gmail.",
     },
     "en": {
         "welcome": (
@@ -190,5 +229,44 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "last_never": "never",
         "channels_saved": "✅ Channels saved ({count})",
+        "step_platform": (
+            "<b>Step 2 of 4</b> — where to collect your digest?\n\n"
+            "• <b>Telegram</b> — public channels\n"
+            "• <b>Gmail</b> — inbox emails"
+        ),
+        "platform_menu": (
+            "<b>📱 Platform</b>\n\n"
+            "Current: <b>{platform}</b>\n\n"
+            "Digests are built from the selected source."
+        ),
+        "platform_telegram": "Telegram",
+        "platform_gmail": "Gmail",
+        "menu_platform": "📱 Platform",
+        "menu_gmail": "📧 Gmail",
+        "gmail_connect": (
+            "<b>📧 Connect Gmail</b>\n\n"
+            "1. Tap the button below and allow read-only access.\n"
+            "2. Return here and tap «Continue».\n\n"
+            "<i>OAuth callback:</i> <code>{redirect}</code>"
+        ),
+        "gmail_linked": "✅ Gmail connected: <b>{email}</b>",
+        "gmail_not_linked": "❌ Connect Gmail first.",
+        "gmail_not_configured": "❌ Gmail OAuth is not configured on the server (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET).",
+        "gmail_fetch_failed": "❌ Failed to fetch emails from Gmail.",
+        "gmail_disconnected": "Gmail disconnected.",
+        "btn_gmail_connect": "🔗 Connect Gmail",
+        "btn_gmail_disconnect": "🔌 Disconnect Gmail",
+        "btn_gmail_continue": "✅ Continue",
+        "no_emails": "ℹ️ No emails for «{label}».",
+        "digest_header_gmail": "🔥 *Your email digest {period}*",
+        "digest_progress_fetch_gmail": "📡 Loading Gmail <b>{label}</b>{dots}",
+        "digest_progress_read_gmail": "📥 Reading emails <b>{label}</b>{dots}",
+        "setup_done_gmail": (
+            "✅ <b>All set!</b>\n\n"
+            "📧 Gmail: <b>{email}</b>\n"
+            "⏱ Schedule: <b>{frequency}</b> at <b>{time}</b>\n\n"
+            "Your first digest will arrive on schedule. Or get one now below."
+        ),
+        "pick_source_first": "❌ Set up a source first: channels or Gmail.",
     },
 }
