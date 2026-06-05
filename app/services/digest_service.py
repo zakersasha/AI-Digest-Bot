@@ -107,6 +107,8 @@ class DigestService:
             await self._user_repo.update_gmail_tokens(user.id, tokens)
             await self._session.flush()
         except ValueError as exc:
+            if str(exc) == "gmail_api_disabled":
+                raise ValueError(t(language, "gmail_api_disabled")) from exc
             raise ValueError(t(language, "gmail_not_linked")) from exc
         except httpx.HTTPError as exc:
             logger.error("gmail_fetch_failed", user_id=user.id, error=str(exc))

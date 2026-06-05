@@ -25,6 +25,9 @@ from app.i18n import resolve_lang, t
 from app.repositories.user_repository import UserRepository
 from app.services.gmail_link import link_gmail_account
 from app.utils.gmail_oauth import parse_oauth_code
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = Router(name="platform")
 
@@ -161,10 +164,16 @@ async def msg_gmail_code(
     settings = get_settings()
     try:
         email = await link_gmail_account(session, settings, message.from_user.id, code)
-    except httpx.HTTPError:
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "gmail_link_http_error",
+            status=exc.response.status_code,
+            body=exc.response.text[:300],
+        )
         await open_screen(message, state, t(lang, "gmail_link_failed"), None)
         return
     except Exception:
+        logger.exception("gmail_link_failed", telegram_id=message.from_user.id)
         await open_screen(message, state, t(lang, "gmail_link_failed"), None)
         return
 

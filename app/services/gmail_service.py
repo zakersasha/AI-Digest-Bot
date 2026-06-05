@@ -13,7 +13,10 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.readonly"
+GMAIL_SCOPES = (
+    "https://www.googleapis.com/auth/gmail.readonly "
+    "https://www.googleapis.com/auth/userinfo.email"
+)
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -89,7 +92,7 @@ class GmailService:
             tokens["refresh_token"] = refreshed["refresh_token"]
         return tokens["access_token"], tokens
 
-    async def fetch_profile_email(self, access_token: str) -> str:
+    async def _fetch_gmail_profile_email(self, access_token: str) -> str:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{GMAIL_API}/profile",
@@ -97,6 +100,35 @@ class GmailService:
             )
             response.raise_for_status()
             return response.json().get("emailAddress", "")
+
+    async def _fetch_userinfo_email(self, access_token: str) -> str:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            response.raise_for_status()
+            return response.json().get("email", "")
+
+    async def resolve_account_email(self, access_token: str) -> str:
+        for fetcher, label in (
+            (self._fetch_userinfo_email, "userinfo"),
+            (self._fetch_gmail_profile_email, "gmail_profile"),
+        ):
+            try:
+                email = await fetcher(access_token)
+                if email:
+                    return email
+            except httpx.HTTPStatusError as exc:
+                logger.warning(
+                    "gmail_email_lookup_failed",
+                    source=label,
+                    status=exc.response.status_code,
+                    body=exc.response.text[:300],
+                )
+            except httpx.HTTPError as exc:
+                logger.warning("gmail_email_lookup_failed", source=label, error=str(exc))
+        return ""
 
     async def fetch_messages(
         self,
@@ -114,6 +146,9 @@ class GmailService:
                 params={"q": query, "maxResults": max_messages},
                 headers=headers,
             )
+            if list_resp.status_code == 403:
+                logger.error("gmail_api_forbidden", body=list_resp.text[:300])
+                raise ValueError("gmail_api_disabled")
             list_resp.raise_for_status()
             ids = [item["id"] for item in list_resp.json().get("messages", [])]
 
@@ -142,8 +177,10 @@ class GmailService:
             "refresh_token": raw.get("refresh_token"),
             "expires_at": expires_at,
         }
-        email = await self.fetch_profile_email(tokens["access_token"])
-        return tokens, email
+        email = await self.resolve_account_email(tokens["access_token"])
+        if not email:
+            logger.warning("gmail_email_unresolved_tokens_saved")
+        return tokens, email or "Gmail"
 
 
 def gmail_message_url(message_id: str) -> str:

@@ -125,6 +125,10 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "gmail_code_invalid": "❌ Не нашёл code= в сообщении. Вставьте всю ссылку из браузера.",
         "gmail_link_failed": "❌ Не удалось подключить Gmail. Код устарел — авторизуйтесь заново.",
+        "gmail_api_disabled": (
+            "❌ Gmail API не включён в Google Cloud.\n"
+            "APIs & Services → Library → Gmail API → Enable, затем подключите Gmail заново."
+        ),
         "btn_gmail_paste": "📋 Вставить ссылку",
         "gmail_linked": "✅ Gmail подключён: <b>{email}</b>",
         "gmail_not_linked": "❌ Сначала подключите Gmail.",
@@ -272,6 +276,10 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "gmail_code_invalid": "❌ No code= found. Paste the full browser URL.",
         "gmail_link_failed": "❌ Failed to connect Gmail. Code expired — authorize again.",
+        "gmail_api_disabled": (
+            "❌ Gmail API is not enabled in Google Cloud.\n"
+            "APIs & Services → Library → Gmail API → Enable, then connect Gmail again."
+        ),
         "btn_gmail_paste": "📋 Paste link",
         "gmail_linked": "✅ Gmail connected: <b>{email}</b>",
         "gmail_not_linked": "❌ Connect Gmail first.",
