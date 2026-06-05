@@ -1,6 +1,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.i18n import t
+
 CB_LANG_RU = "lang:ru"
 CB_LANG_EN = "lang:en"
 CB_SRC_DONE = "src:done"
@@ -10,18 +11,15 @@ CB_FREQ_BACK = "freq:back"
 CB_TIME_BACK = "time:back"
 CB_ACTION_CHANNELS = "act:channels"
 CB_ACTION_GMAIL = "act:gmail"
-CB_ACTION_PLATFORM = "act:platform"
-CB_ACTION_SCHEDULE = "act:schedule"
-CB_ACTION_DIGEST = "act:digest"
-CB_ACTION_SETUP = "act:setup"
 CB_ACTION_MENU = "act:menu"
-CB_PLATFORM_TG = "plat:tg"
+CB_PLATFORM_TELEGRAM = "plat:telegram"
 CB_PLATFORM_GMAIL = "plat:gmail"
-CB_GMAIL_CONNECT = "gmail:connect"
+CB_PLATFORM_LINKEDIN = "plat:linkedin"
 CB_GMAIL_DISCONNECT = "gmail:disconnect"
 CB_GMAIL_CHECK = "gmail:check"
-CB_GMAIL_CONTINUE = "gmail:done"
 CB_GMAIL_PASTE = "gmail:paste"
+CB_SCHEDULE_PREFIX = "sched:"
+CB_TEST_DIGEST_PREFIX = "test:"
 
 
 def language_keyboard() -> InlineKeyboardMarkup:
@@ -35,7 +33,7 @@ def language_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def frequency_keyboard(lang: str) -> InlineKeyboardMarkup:
+def frequency_keyboard(lang: str, *, platform: str | None = None) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -62,28 +60,6 @@ def time_keyboard(lang: str, hour: int) -> InlineKeyboardMarkup:
             ],
             [InlineKeyboardButton(text=t(lang, "btn_confirm_time"), callback_data="time:confirm")],
             [InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_TIME_BACK)],
-        ]
-    )
-
-
-def main_menu_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "menu_sources"), callback_data=CB_ACTION_CHANNELS)],
-            [
-                InlineKeyboardButton(text=t(lang, "menu_schedule"), callback_data=CB_ACTION_SCHEDULE),
-                InlineKeyboardButton(text=t(lang, "menu_digest_now"), callback_data=CB_ACTION_DIGEST),
-            ],
-            [InlineKeyboardButton(text=t(lang, "menu_reconfigure"), callback_data=CB_ACTION_SETUP)],
-        ]
-    )
-
-
-def done_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text=t(lang, "menu_digest_now"), callback_data=CB_ACTION_DIGEST)],
-            [InlineKeyboardButton(text=t(lang, "btn_menu"), callback_data=CB_ACTION_MENU)],
         ]
     )
 

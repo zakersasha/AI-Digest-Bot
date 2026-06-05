@@ -4,20 +4,11 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.keyboards import (
-    CB_SRC_ADD,
-    CB_SRC_DONE,
-    CB_SRC_REMOVE,
-    frequency_keyboard,
-    main_menu_keyboard,
-)
-from app.bot.screen import edit_from_callback
+from app.bot.keyboards import CB_SRC_ADD, CB_SRC_REMOVE
 from app.bot.sources_flow import (
     process_source_links,
-    refresh_sources_screen,
+    refresh_telegram_screen,
     show_add_source_prompt,
-    show_sources_manage,
-    source_key_from_callback,
 )
 from app.bot.states import OnboardingStates
 from app.i18n import resolve_lang, t
@@ -27,7 +18,6 @@ from app.repositories.user_repository import UserRepository
 router = Router(name="sources")
 
 _SOURCE_STATES = (
-    OnboardingStates.entering_sources,
     OnboardingStates.managing_sources,
     OnboardingStates.waiting_add_source,
 )
@@ -40,19 +30,15 @@ async def msg_source_links(
     session: AsyncSession,
 ) -> None:
     lang = await resolve_lang(session, message.from_user.id)
-    data = await state.get_data()
-    onboarding = data.get("sources_onboarding", True)
-
     new_count, dup_count, _ = await process_source_links(message, session, message.text or "")
 
     if new_count == 0 and dup_count == 0:
-        await refresh_sources_screen(
+        await refresh_telegram_screen(
             message,
             state,
             session,
             lang,
             message.from_user.id,
-            onboarding=onboarding,
             status_line=t(lang, "sources_parse_failed"),
         )
         return
@@ -69,13 +55,12 @@ async def msg_source_links(
     else:
         status = None
 
-    await refresh_sources_screen(
+    await refresh_telegram_screen(
         message,
         state,
         session,
         lang,
         message.from_user.id,
-        onboarding=onboarding,
         status_line=status,
     )
 
@@ -99,42 +84,14 @@ async def cb_src_remove(callback: CallbackQuery, state: FSMContext, session: Asy
     await SourceRepository(session).remove_source(user.id, f"@{key}")
     await session.commit()
     await callback.answer(t(lang, "source_removed"))
-
-    data = await state.get_data()
-    onboarding = data.get("sources_onboarding", False)
-    await refresh_sources_screen(
+    await refresh_telegram_screen(
         callback.message,
         state,
         session,
         lang,
         callback.from_user.id,
-        onboarding=onboarding,
     )
 
 
-@router.callback_query(F.data == CB_SRC_DONE)
-async def cb_src_done(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
-    lang = await resolve_lang(session, callback.from_user.id)
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if not user or not callback.message:
-        await callback.answer()
-        return
-
-    from app.services.user_sources import has_any_source, has_gmail
-
-    if not await has_any_source(session, user):
-        await callback.answer(t(lang, "pick_source_first"), show_alert=True)
-        return
-
-    count = await SourceRepository(session).count_active(user.id)
-    current = await state.get_state()
-    if current == OnboardingStates.entering_sources.state:
-        saved = t(lang, "sources_saved", count=count)
-        if has_gmail(user):
-            saved += " " + t(lang, "gmail_saved_hint")
-        await callback.answer(saved)
-        await edit_from_callback(callback, state, t(lang, "step_frequency"), frequency_keyboard(lang))
-        return
-
-    await callback.answer()
-    await edit_from_callback(callback, state, t(lang, "main_menu"), main_menu_keyboard(lang))
+def source_key_from_callback(data: str) -> str:
+    return data.split(":", 2)[2]

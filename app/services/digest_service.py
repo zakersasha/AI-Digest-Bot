@@ -10,14 +10,15 @@ from app.config import Settings
 from app.i18n import digest_title, frequency_label, t
 from app.models.user import User
 from app.repositories.digest_repository import DigestRepository
+from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.content_message import ContentMessage
 from app.services.frequency import parse_frequency
 from app.services.gmail_service import GmailService
 from app.services.message_selection import interleave_messages_by_source
+from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import shared_telethon_client
-from app.services.user_sources import channel_count, digest_platform, has_gmail
 from app.utils.digest_links import repair_digest_link_placeholders
 from app.utils.links import channel_username
 from app.utils.logging import get_logger
@@ -38,65 +39,61 @@ class DigestService:
         self._source_repo = SourceRepository(session)
         self._digest_repo = DigestRepository(session)
         self._user_repo = UserRepository(session)
+        self._platform_repo = PlatformSettingsRepository(session)
         self._gmail = GmailService(settings)
 
-    async def generate_for_user(self, user_id: int, frequency: str, language: str) -> str:
+    async def generate_for_platform(
+        self,
+        user_id: int,
+        platform: str,
+        frequency: str,
+        language: str,
+    ) -> str:
         user = await self._user_repo.get_by_id(user_id)
         if not user:
             raise ValueError(t(language, "pick_source_first"))
 
-        channels = await channel_count(self._session, user.id)
-        gmail_linked = has_gmail(user)
-        if not channels and not gmail_linked:
+        if platform == "telegram":
+            return await self._generate_telegram_digest(user, frequency, language)
+        if platform == "gmail":
+            return await self._generate_gmail_digest(user, frequency, language)
+        raise ValueError(t(language, "platform_unavailable"))
+
+    async def generate_scheduled(
+        self,
+        user_id: int,
+        platform: str,
+        language: str,
+    ) -> str:
+        user = await self._user_repo.get_by_id(user_id)
+        if not user:
             raise ValueError(t(language, "pick_source_first"))
 
-        delta = parse_frequency(frequency)
-        since = datetime.now(tz=UTC) - delta
-        label = frequency_label(language, frequency)
-        all_messages: list[ContentMessage] = []
+        settings = await self._platform_repo.get(user_id, platform)
+        if not await can_deliver_platform(self._session, user, platform, settings):
+            raise ValueError(t(language, "platform_not_ready"))
 
-        if channels:
-            tg_messages = await self._fetch_telegram_messages(user, since, language)
-            all_messages.extend(tg_messages)
+        frequency = settings.digest_frequency or "1d"
+        return await self.generate_for_platform(user_id, platform, frequency, language)
 
-        if gmail_linked:
-            gmail_messages = await self._fetch_gmail_messages(user, since, language)
-            all_messages.extend(gmail_messages)
-
-        if not all_messages:
-            if channels and gmail_linked:
-                raise ValueError(t(language, "no_content", label=label))
-            if gmail_linked:
-                raise ValueError(t(language, "no_emails", label=label))
-            raise ValueError(t(language, "no_messages", label=label))
-
-        platform = digest_platform(channels > 0, gmail_linked)
-        return await self._build_digest(
-            user.id,
-            frequency,
-            language,
-            all_messages,
-            platform=platform,
-        )
-
-    async def _fetch_telegram_messages(
-        self,
-        user: User,
-        since: datetime,
-        language: str,
-    ) -> list[ContentMessage]:
+    async def _generate_telegram_digest(self, user: User, frequency: str, language: str) -> str:
         sources = await self._source_repo.list_active_for_user(user.id)
         if not sources:
-            return []
+            raise ValueError(t(language, "no_channels_selected"))
 
         if not self._settings.telegram_session_string:
             raise ValueError(t(language, "reader_not_configured"))
 
-        messages: list[ContentMessage] = []
+        delta = parse_frequency(frequency)
+        since = datetime.now(tz=UTC) - delta
+        label = frequency_label(language, frequency)
+
+        all_messages: list[ContentMessage] = []
         async with shared_telethon_client(self._settings) as telethon:
             for source in sources:
                 try:
-                    messages.extend(await telethon.fetch_messages(source.telegram_source, since))
+                    messages = await telethon.fetch_messages(source.telegram_source, since)
+                    all_messages.extend(messages)
                 except ValueError as exc:
                     logger.warning(
                         "source_fetch_failed",
@@ -105,16 +102,28 @@ class DigestService:
                     )
                 except TimeoutError:
                     raise
-        return messages
 
-    async def _fetch_gmail_messages(
-        self,
-        user: User,
-        since: datetime,
-        language: str,
-    ) -> list[ContentMessage]:
+        if not all_messages:
+            raise ValueError(t(language, "no_messages", label=label))
+
+        return await self._build_digest(
+            user.id,
+            "telegram",
+            frequency,
+            language,
+            all_messages,
+        )
+
+    async def _generate_gmail_digest(self, user: User, frequency: str, language: str) -> str:
+        if not self._user_repo.has_gmail(user):
+            raise ValueError(t(language, "gmail_not_linked"))
+
         if not self._gmail.is_configured():
             raise ValueError(t(language, "gmail_not_configured"))
+
+        delta = parse_frequency(frequency)
+        since = datetime.now(tz=UTC) - delta
+        label = frequency_label(language, frequency)
 
         try:
             messages, tokens = await self._gmail.fetch_messages(
@@ -124,7 +133,6 @@ class DigestService:
             )
             await self._user_repo.update_gmail_tokens(user.id, tokens)
             await self._session.flush()
-            return messages
         except ValueError as exc:
             if str(exc) == "gmail_api_disabled":
                 raise ValueError(t(language, "gmail_api_disabled")) from exc
@@ -133,14 +141,24 @@ class DigestService:
             logger.error("gmail_fetch_failed", user_id=user.id, error=str(exc))
             raise RuntimeError(t(language, "gmail_fetch_failed")) from exc
 
+        if not messages:
+            raise ValueError(t(language, "no_emails", label=label))
+
+        return await self._build_digest(
+            user.id,
+            "gmail",
+            frequency,
+            language,
+            messages,
+        )
+
     async def _build_digest(
         self,
         user_id: int,
+        platform: str,
         frequency: str,
         language: str,
         all_messages: list[ContentMessage],
-        *,
-        platform: str,
     ) -> str:
         limits = self._settings.digest_ai_limits()
         selected = interleave_messages_by_source(all_messages, limits.max_messages)
@@ -195,17 +213,16 @@ class DigestService:
         content = header + digest_body
 
         await self._digest_repo.create(user_id, frequency, content)
-        await self._user_repo.update_last_digest(user_id, datetime.now(tz=UTC))
+        await self._platform_repo.update_last_digest(user_id, platform, datetime.now(tz=UTC))
         await self._session.commit()
 
         logger.info(
             "digest_generated",
             user_id=user_id,
+            platform=platform,
             frequency=frequency,
             language=language,
-            platform=platform,
             messages=len(selected),
             blocks=len(blocks),
-            input_budget_chars=budget,
         )
         return content

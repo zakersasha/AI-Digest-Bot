@@ -33,6 +33,20 @@ _USER_MIGRATIONS = (
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_linked_at TIMESTAMPTZ",
 )
 
+_PLATFORM_SETTINGS_DDL = """
+CREATE TABLE IF NOT EXISTS platform_settings (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform VARCHAR(16) NOT NULL,
+    digest_frequency VARCHAR(8),
+    delivery_hour INTEGER,
+    delivery_minute INTEGER DEFAULT 0,
+    last_digest_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_user_platform UNIQUE (user_id, platform)
+)
+"""
+
 
 async def init_db() -> None:
     async with engine.begin() as conn:
@@ -40,7 +54,13 @@ async def init_db() -> None:
         for sql in _USER_MIGRATIONS:
             await conn.execute(text(sql))
 
+    async with engine.begin() as conn:
+        await conn.execute(text(_PLATFORM_SETTINGS_DDL))
+
     async with async_session_factory() as session:
+        from app.db.migrate_platform_settings import migrate_legacy_schedules
+
+        await migrate_legacy_schedules(session)
         await seed_catalog(session, settings)
         await session.commit()
 

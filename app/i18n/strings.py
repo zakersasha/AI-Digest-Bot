@@ -2,9 +2,28 @@ STRINGS: dict[str, dict[str, str]] = {
     "ru": {
         "welcome": (
             "👋 <b>AI Digest Bot</b>\n\n"
-            "Персональные AI-сводки из Telegram и Gmail.\n\n"
-            "<b>Шаг 1 из 3</b> — выберите язык:"
+            "Персональные AI-сводки из разных платформ.\n\n"
+            "Выберите язык:"
         ),
+        "platforms_menu": "🏠 <b>Ваши платформы</b>\n\nНажмите платформу — внутри подключение и расписание:",
+        "platform_linkedin": "LinkedIn",
+        "platform_coming_soon": "Скоро будет доступно",
+        "soon": "скоро",
+        "schedule_not_set": "расписание не задано",
+        "schedule_short": "{frequency} в {time}",
+        "schedule_label": "Расписание:",
+        "schedule_saved": "✅ Расписание сохранено",
+        "platform_not_connected": "не подключено",
+        "platform_status_channels": "{count} кан.",
+        "platform_status_gmail": "✅ {email}",
+        "platform_connect_first": "Сначала подключите платформу",
+        "platform_not_ready": "Настройте подключение и расписание",
+        "platform_unavailable": "Платформа недоступна",
+        "step_frequency_platform": "<b>Расписание · {platform}</b>\n\nКак часто присылать дайджест?",
+        "telegram_screen_hint": "Добавьте каналы ссылками в чат. Можно несколько сразу.",
+        "gmail_screen_hint": "Подключите Gmail для дайджеста входящих писем.",
+        "btn_schedule": "⏱ Расписание",
+        "btn_test_digest": "🔥 Тест дайджеста",
         "step_sources": (
             "<b>Шаг 2 из 3</b> — ваши источники\n\n"
             "Добавьте <b>Telegram-каналы</b> (ссылки в чат) и/или <b>Gmail</b> (кнопка ниже).\n"
@@ -134,7 +153,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "gmail_oauth_done_notify": (
             "✅ <b>Gmail подключён</b>: {email}\n\n"
-            "Вернитесь в «Источники» и нажмите «Продолжить», когда будете готовы."
+            "Откройте 📧 Gmail в боте и настройте расписание."
         ),
         "gmail_paste_prompt": (
             "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Google.\n\n"
@@ -175,9 +194,28 @@ STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "welcome": (
             "👋 <b>AI Digest Bot</b>\n\n"
-            "Personal AI digests from Telegram and Gmail.\n\n"
-            "<b>Step 1 of 3</b> — choose your language:"
+            "Personal AI digests from multiple platforms.\n\n"
+            "Choose your language:"
         ),
+        "platforms_menu": "🏠 <b>Your platforms</b>\n\nTap a platform — connect and set schedule inside:",
+        "platform_linkedin": "LinkedIn",
+        "platform_coming_soon": "Coming soon",
+        "soon": "soon",
+        "schedule_not_set": "schedule not set",
+        "schedule_short": "{frequency} at {time}",
+        "schedule_label": "Schedule:",
+        "schedule_saved": "✅ Schedule saved",
+        "platform_not_connected": "not connected",
+        "platform_status_channels": "{count} ch.",
+        "platform_status_gmail": "✅ {email}",
+        "platform_connect_first": "Connect the platform first",
+        "platform_not_ready": "Set up connection and schedule",
+        "platform_unavailable": "Platform unavailable",
+        "step_frequency_platform": "<b>Schedule · {platform}</b>\n\nHow often to send the digest?",
+        "telegram_screen_hint": "Add channels by pasting links in chat.",
+        "gmail_screen_hint": "Connect Gmail for inbox digest.",
+        "btn_schedule": "⏱ Schedule",
+        "btn_test_digest": "🔥 Test digest",
         "step_sources": (
             "<b>Step 2 of 3</b> — your sources\n\n"
             "Add <b>Telegram channels</b> (paste links in chat) and/or <b>Gmail</b> (button below).\n"
@@ -307,7 +345,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "gmail_oauth_done_notify": (
             "✅ <b>Gmail connected</b>: {email}\n\n"
-            "Go to «Sources» and tap «Continue» when ready."
+            "Open 📧 Gmail in the bot and set your schedule."
         ),
         "gmail_paste_prompt": (
             "Send the <b>full URL</b> from your browser address bar after Google authorization.\n\n"
