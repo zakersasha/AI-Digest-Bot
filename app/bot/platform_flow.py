@@ -38,12 +38,17 @@ def build_gmail_connect_keyboard(
     if not linked and gmail.is_configured():
         auth_url = gmail.build_auth_url(create_oauth_state(telegram_id))
         rows.append([InlineKeyboardButton(text=t(lang, "btn_gmail_connect"), url=auth_url)])
-        rows.append(
-            [
-                InlineKeyboardButton(text=t(lang, "btn_gmail_paste"), callback_data=CB_GMAIL_PASTE),
-                InlineKeyboardButton(text=t(lang, "btn_gmail_continue"), callback_data=CB_GMAIL_CHECK),
-            ]
-        )
+        if settings.gmail_redirect_is_localhost():
+            rows.append(
+                [
+                    InlineKeyboardButton(text=t(lang, "btn_gmail_paste"), callback_data=CB_GMAIL_PASTE),
+                    InlineKeyboardButton(text=t(lang, "btn_gmail_continue"), callback_data=CB_GMAIL_CHECK),
+                ]
+            )
+        else:
+            rows.append(
+                [InlineKeyboardButton(text=t(lang, "btn_gmail_continue"), callback_data=CB_GMAIL_CHECK)]
+            )
 
     if linked:
         rows.append(
@@ -101,9 +106,12 @@ async def show_gmail_screen(
 
     settings = get_settings()
     linked = UserRepository(session).has_gmail(user)
-    text = t(lang, "gmail_connect", redirect=settings.gmail_redirect_uri)
     if linked and user.gmail_email:
         text = t(lang, "gmail_linked", email=user.gmail_email)
+    elif settings.gmail_redirect_is_localhost():
+        text = t(lang, "gmail_connect_localhost", redirect=settings.gmail_redirect_uri)
+    else:
+        text = t(lang, "gmail_connect", redirect=settings.gmail_redirect_uri)
     if status_line:
         text += f"\n\n{status_line}"
 

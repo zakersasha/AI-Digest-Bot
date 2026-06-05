@@ -108,8 +108,13 @@ async def run_bot() -> None:
 
     oauth_runner = None
     if settings.gmail_client_id and settings.gmail_client_secret:
-        oauth_runner = await start_oauth_server(settings)
+        oauth_runner = await start_oauth_server(settings, bot=bot)
         logger.info("gmail_oauth_enabled", redirect_uri=settings.gmail_redirect_uri)
+        if settings.gmail_redirect_is_localhost():
+            logger.warning(
+                "gmail_oauth_localhost_redirect",
+                hint="Set GMAIL_REDIRECT_URI to your server's public URL for automatic OAuth",
+            )
     else:
         logger.info("gmail_oauth_disabled")
 

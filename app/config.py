@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     gmail_oauth_port: int = Field(default=8080, alias="GMAIL_OAUTH_PORT")
     gmail_max_messages: int = Field(default=50, alias="GMAIL_MAX_MESSAGES")
 
+    def gmail_redirect_is_localhost(self) -> bool:
+        uri = self.gmail_redirect_uri.lower()
+        return "localhost" in uri or "127.0.0.1" in uri
+
     @field_validator(
         "openai_base_url",
         "openai_proxy_url",

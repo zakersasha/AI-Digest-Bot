@@ -111,12 +111,20 @@ STRINGS: dict[str, dict[str, str]] = {
         "gmail_connect": (
             "<b>📧 Подключение Gmail</b>\n\n"
             "1. Нажмите «Подключить Gmail» и разрешите доступ (только чтение).\n"
-            "2. После Google:\n"
-            "   • если страница <code>localhost</code> не открылась — это нормально для TG-бота;\n"
-            "   • скопируйте <b>всю строку</b> из адресной строки браузера;\n"
-            "   • в боте нажмите «Вставить ссылку» и отправьте её.\n"
-            "3. Либо нажмите «Продолжить», если callback-сервер доступен.\n\n"
-            "<i>Redirect URI в Google:</i> <code>{redirect}</code>"
+            "2. После Google вас вернёт на наш сервер — Gmail подключится автоматически.\n"
+            "3. Вернитесь в Telegram: придёт сообщение «Gmail подключён» → нажмите «Продолжить»."
+        ),
+        "gmail_connect_localhost": (
+            "<b>📧 Подключение Gmail</b>\n\n"
+            "⚠️ Сейчас redirect = <code>localhost</code> — авто-подключение не сработает.\n"
+            "Админу: укажите публичный URL сервера в <code>GMAIL_REDIRECT_URI</code>.\n\n"
+            "Временный обход: «Вставить ссылку» после авторизации Google.\n\n"
+            "<i>Redirect URI:</i> <code>{redirect}</code>"
+        ),
+        "gmail_oauth_done_notify": (
+            "✅ <b>Gmail подключён</b>\n\n"
+            "Аккаунт: <b>{email}</b>\n\n"
+            "Нажмите «Продолжить» для настройки расписания."
         ),
         "gmail_paste_prompt": (
             "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Google.\n\n"
@@ -266,12 +274,20 @@ STRINGS: dict[str, dict[str, str]] = {
         "gmail_connect": (
             "<b>📧 Connect Gmail</b>\n\n"
             "1. Tap «Connect Gmail» and allow read-only access.\n"
-            "2. After Google:\n"
-            "   • if <code>localhost</code> fails to load — that's normal for a TG bot;\n"
-            "   • copy the <b>full URL</b> from your browser address bar;\n"
-            "   • tap «Paste link» here and send it.\n"
-            "3. Or tap «Continue» if the callback server is reachable.\n\n"
-            "<i>Redirect URI in Google:</i> <code>{redirect}</code>"
+            "2. After Google you'll be redirected to our server — Gmail links automatically.\n"
+            "3. Return to Telegram: you'll get a «Gmail connected» message → tap «Continue»."
+        ),
+        "gmail_connect_localhost": (
+            "<b>📧 Connect Gmail</b>\n\n"
+            "⚠️ Redirect is <code>localhost</code> — auto-connect won't work.\n"
+            "Admin: set your server's public URL in <code>GMAIL_REDIRECT_URI</code>.\n\n"
+            "Workaround: use «Paste link» after Google authorization.\n\n"
+            "<i>Redirect URI:</i> <code>{redirect}</code>"
+        ),
+        "gmail_oauth_done_notify": (
+            "✅ <b>Gmail connected</b>\n\n"
+            "Account: <b>{email}</b>\n\n"
+            "Tap «Continue» to set up your schedule."
         ),
         "gmail_paste_prompt": (
             "Send the <b>full URL</b> from your browser address bar after Google authorization.\n\n"
