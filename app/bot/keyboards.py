@@ -24,6 +24,7 @@ CB_GMAIL_CONNECT = "gmail:connect"
 CB_GMAIL_DISCONNECT = "gmail:disconnect"
 CB_GMAIL_CONTINUE = "gmail:done"
 CB_GMAIL_CHECK = "gmail:check"
+CB_GMAIL_PASTE = "gmail:paste"
 
 
 def language_keyboard() -> InlineKeyboardMarkup:

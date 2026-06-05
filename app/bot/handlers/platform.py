@@ -1,6 +1,8 @@
+import httpx
 from aiogram import F, Router
+from aiogram.filters import StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import (
@@ -9,15 +11,20 @@ from app.bot.keyboards import (
     CB_GMAIL_CHECK,
     CB_GMAIL_CONTINUE,
     CB_GMAIL_DISCONNECT,
+    CB_GMAIL_PASTE,
     CB_PLATFORM_GMAIL,
     CB_PLATFORM_TG,
     frequency_keyboard,
 )
 from app.bot.platform_flow import show_gmail_screen, show_platform_menu, show_platform_picker
-from app.bot.screen import edit_from_callback
+from app.bot.screen import edit_from_callback, open_screen
 from app.bot.sources_flow import show_sources_onboarding
+from app.bot.states import OnboardingStates
+from app.config import get_settings
 from app.i18n import resolve_lang, t
 from app.repositories.user_repository import UserRepository
+from app.services.gmail_link import link_gmail_account
+from app.utils.gmail_oauth import parse_oauth_code
 
 router = Router(name="platform")
 
@@ -126,6 +133,67 @@ async def cb_gmail_continue(callback: CallbackQuery, session: AsyncSession, stat
             onboarding=False,
             status_line=t(lang, "gmail_linked", email=user.gmail_email or ""),
         )
+
+
+@router.callback_query(F.data == CB_GMAIL_PASTE)
+async def cb_gmail_paste(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
+    lang = await resolve_lang(session, callback.from_user.id)
+    data = await state.get_data()
+    await state.update_data(gmail_onboarding=data.get("gmail_onboarding", False))
+    await state.set_state(OnboardingStates.waiting_gmail_code)
+    await callback.answer()
+    if callback.message:
+        await edit_from_callback(callback, state, t(lang, "gmail_paste_prompt"), None)
+
+
+@router.message(StateFilter(OnboardingStates.waiting_gmail_code), F.text, ~F.text.startswith("/"))
+async def msg_gmail_code(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+) -> None:
+    lang = await resolve_lang(session, message.from_user.id)
+    code = parse_oauth_code(message.text or "")
+    if not code:
+        await open_screen(message, state, t(lang, "gmail_code_invalid"), None)
+        return
+
+    settings = get_settings()
+    try:
+        email = await link_gmail_account(session, settings, message.from_user.id, code)
+    except httpx.HTTPError:
+        await open_screen(message, state, t(lang, "gmail_link_failed"), None)
+        return
+    except Exception:
+        await open_screen(message, state, t(lang, "gmail_link_failed"), None)
+        return
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    data = await state.get_data()
+    onboarding = data.get("gmail_onboarding", False)
+    if onboarding:
+        await state.set_state(OnboardingStates.connecting_gmail)
+        await open_screen(
+            message,
+            state,
+            t(lang, "gmail_linked", email=email) + "\n\n" + t(lang, "step_frequency"),
+            frequency_keyboard(lang),
+        )
+        return
+
+    await show_gmail_screen(
+        message,
+        state,
+        session,
+        lang,
+        message.from_user.id,
+        onboarding=False,
+        status_line=t(lang, "gmail_linked", email=email),
+    )
 
 
 @router.callback_query(F.data == CB_GMAIL_DISCONNECT)

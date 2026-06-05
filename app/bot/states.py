@@ -7,3 +7,4 @@ class OnboardingStates(StatesGroup):
     managing_sources = State()
     waiting_add_source = State()
     connecting_gmail = State()
+    waiting_gmail_code = State()

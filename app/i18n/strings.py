@@ -110,10 +110,22 @@ STRINGS: dict[str, dict[str, str]] = {
         "menu_gmail": "📧 Gmail",
         "gmail_connect": (
             "<b>📧 Подключение Gmail</b>\n\n"
-            "1. Нажмите кнопку ниже и разрешите доступ только на чтение.\n"
-            "2. Вернитесь в бот и нажмите «Продолжить».\n\n"
-            "<i>OAuth callback:</i> <code>{redirect}</code>"
+            "1. Нажмите «Подключить Gmail» и разрешите доступ (только чтение).\n"
+            "2. После Google:\n"
+            "   • если страница <code>localhost</code> не открылась — это нормально для TG-бота;\n"
+            "   • скопируйте <b>всю строку</b> из адресной строки браузера;\n"
+            "   • в боте нажмите «Вставить ссылку» и отправьте её.\n"
+            "3. Либо нажмите «Продолжить», если callback-сервер доступен.\n\n"
+            "<i>Redirect URI в Google:</i> <code>{redirect}</code>"
         ),
+        "gmail_paste_prompt": (
+            "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Google.\n\n"
+            "Пример:\n"
+            "<code>http://localhost:8080/oauth/gmail/callback?state=...&code=4/0A...</code>"
+        ),
+        "gmail_code_invalid": "❌ Не нашёл code= в сообщении. Вставьте всю ссылку из браузера.",
+        "gmail_link_failed": "❌ Не удалось подключить Gmail. Код устарел — авторизуйтесь заново.",
+        "btn_gmail_paste": "📋 Вставить ссылку",
         "gmail_linked": "✅ Gmail подключён: <b>{email}</b>",
         "gmail_not_linked": "❌ Сначала подключите Gmail.",
         "gmail_not_configured": "❌ Gmail OAuth не настроен на сервере (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET).",
@@ -245,10 +257,22 @@ STRINGS: dict[str, dict[str, str]] = {
         "menu_gmail": "📧 Gmail",
         "gmail_connect": (
             "<b>📧 Connect Gmail</b>\n\n"
-            "1. Tap the button below and allow read-only access.\n"
-            "2. Return here and tap «Continue».\n\n"
-            "<i>OAuth callback:</i> <code>{redirect}</code>"
+            "1. Tap «Connect Gmail» and allow read-only access.\n"
+            "2. After Google:\n"
+            "   • if <code>localhost</code> fails to load — that's normal for a TG bot;\n"
+            "   • copy the <b>full URL</b> from your browser address bar;\n"
+            "   • tap «Paste link» here and send it.\n"
+            "3. Or tap «Continue» if the callback server is reachable.\n\n"
+            "<i>Redirect URI in Google:</i> <code>{redirect}</code>"
         ),
+        "gmail_paste_prompt": (
+            "Send the <b>full URL</b> from your browser address bar after Google authorization.\n\n"
+            "Example:\n"
+            "<code>http://localhost:8080/oauth/gmail/callback?state=...&code=4/0A...</code>"
+        ),
+        "gmail_code_invalid": "❌ No code= found. Paste the full browser URL.",
+        "gmail_link_failed": "❌ Failed to connect Gmail. Code expired — authorize again.",
+        "btn_gmail_paste": "📋 Paste link",
         "gmail_linked": "✅ Gmail connected: <b>{email}</b>",
         "gmail_not_linked": "❌ Connect Gmail first.",
         "gmail_not_configured": "❌ Gmail OAuth is not configured on the server (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET).",

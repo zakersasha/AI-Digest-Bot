@@ -7,6 +7,7 @@ from app.bot.keyboards import (
     CB_GMAIL_CHECK,
     CB_GMAIL_CONTINUE,
     CB_GMAIL_DISCONNECT,
+    CB_GMAIL_PASTE,
     platform_keyboard,
 )
 from app.bot.screen import edit_by_state, edit_screen, replace_screen
@@ -37,7 +38,12 @@ def build_gmail_connect_keyboard(
     if not linked and gmail.is_configured():
         auth_url = gmail.build_auth_url(create_oauth_state(telegram_id))
         rows.append([InlineKeyboardButton(text=t(lang, "btn_gmail_connect"), url=auth_url)])
-        rows.append([InlineKeyboardButton(text=t(lang, "btn_gmail_continue"), callback_data=CB_GMAIL_CHECK)])
+        rows.append(
+            [
+                InlineKeyboardButton(text=t(lang, "btn_gmail_paste"), callback_data=CB_GMAIL_PASTE),
+                InlineKeyboardButton(text=t(lang, "btn_gmail_continue"), callback_data=CB_GMAIL_CHECK),
+            ]
+        )
 
     if linked:
         rows.append(
@@ -101,6 +107,7 @@ async def show_gmail_screen(
     if status_line:
         text += f"\n\n{status_line}"
 
+    await state.update_data(gmail_onboarding=onboarding)
     if onboarding:
         await state.set_state(OnboardingStates.connecting_gmail)
 

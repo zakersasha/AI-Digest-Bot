@@ -4,8 +4,7 @@ from collections.abc import Awaitable, Callable
 from aiohttp import web
 
 from app.db.session import async_session_factory
-from app.repositories.user_repository import UserRepository
-from app.services.gmail_service import GmailService
+from app.services.gmail_link import link_gmail_account
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,7 +24,6 @@ def pop_oauth_telegram_id(state: str) -> int | None:
 
 async def gmail_oauth_callback(request: web.Request) -> web.Response:
     settings = request.app["settings"]
-    gmail = GmailService(settings)
 
     state = request.query.get("state", "")
     code = request.query.get("code", "")
@@ -39,19 +37,18 @@ async def gmail_oauth_callback(request: web.Request) -> web.Response:
         return web.Response(text="Invalid or expired OAuth state.", status=400)
 
     try:
-        tokens, email = await gmail.complete_oauth(code)
         async with async_session_factory() as session:
-            repo = UserRepository(session)
-            await repo.save_gmail_tokens(telegram_id, tokens, email)
-            await repo.set_content_platform(telegram_id, "gmail")
-            await session.commit()
+            email = await link_gmail_account(session, settings, telegram_id, code)
     except Exception:
         logger.exception("gmail_oauth_callback_failed", telegram_id=telegram_id)
         return web.Response(text="Failed to save Gmail tokens.", status=500)
 
     logger.info("gmail_oauth_success", telegram_id=telegram_id, email=email)
     return web.Response(
-        text="Gmail connected successfully. Return to the Telegram bot.",
+        text=(
+            "<h2>Gmail connected</h2>"
+            "<p>Return to the Telegram bot and tap <b>Continue</b>.</p>"
+        ),
         content_type="text/html",
     )
 
