@@ -19,7 +19,6 @@ async def link_gmail_account(
     tokens, email = await gmail.complete_oauth(code)
     repo = UserRepository(session)
     await repo.save_gmail_tokens(telegram_id, tokens, email)
-    await repo.set_content_platform(telegram_id, "gmail")
     await session.commit()
     logger.info("gmail_linked", telegram_id=telegram_id, email=email)
     return email

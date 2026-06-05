@@ -31,6 +31,12 @@ def _progress_keys(platform: str) -> tuple[str, str, str]:
             "digest_progress_read_gmail",
             "digest_progress_ai",
         )
+    if platform == "combined":
+        return (
+            "digest_progress_fetch_combined",
+            "digest_progress_read_combined",
+            "digest_progress_ai",
+        )
     return _PROGRESS_KEYS
 
 

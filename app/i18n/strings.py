@@ -2,20 +2,19 @@ STRINGS: dict[str, dict[str, str]] = {
     "ru": {
         "welcome": (
             "👋 <b>AI Digest Bot</b>\n\n"
-            "Персональные AI-сводки из ваших Telegram-каналов.\n\n"
-            "<b>Шаг 1 из 4</b> — выберите язык:"
+            "Персональные AI-сводки из Telegram и Gmail.\n\n"
+            "<b>Шаг 1 из 3</b> — выберите язык:"
         ),
         "step_sources": (
-            "<b>Шаг 2 из 4</b> — каналы для дайджеста\n\n"
-            "Вставьте ссылки одним сообщением (до 10–15 каналов):\n"
-            "• каждая ссылка с новой строки, или\n"
-            "• через пробел / запятую\n\n"
-            "Формат: <code>@channel</code> или <code>https://t.me/channel</code>\n"
-            "Когда каналы появятся в списке — нажмите «Продолжить»."
+            "<b>Шаг 2 из 3</b> — ваши источники\n\n"
+            "Добавьте <b>Telegram-каналы</b> (ссылки в чат) и/или <b>Gmail</b> (кнопка ниже).\n"
+            "Можно использовать оба сразу — один дайджест по расписанию.\n\n"
+            "Когда готово — «Продолжить»."
         ),
         "sources_manage": (
-            "<b>📋 Ваши каналы</b>\n\n"
-            "Отправьте новые ссылки в чат или удалите кнопкой 🗑."
+            "<b>📋 Источники</b>\n\n"
+            "Telegram: ссылки в чат, удаление — кнопкой 🗑.\n"
+            "Gmail: подключить или отключить кнопкой ниже."
         ),
         "sources_add_prompt": (
             "Вставьте ссылки (можно несколько сразу, каждая с новой строки).\n"
@@ -32,7 +31,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_truncated": "показана краткая версия",
         "btn_menu": "🏠 В меню",
         "step_frequency": (
-            "<b>Шаг 3 из 4</b> — как часто присылать дайджест?\n\n"
+            "<b>Шаг 3 из 3</b> — как часто присылать дайджест?\n\n"
             "Период сводки = интервал рассылки:\n"
             "• раз в 12 ч → за последние 12 часов\n"
             "• раз в день → за последние сутки\n"
@@ -50,10 +49,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "setup_done": (
             "✅ <b>Готово!</b>\n\n"
             "📋 Каналы: <b>{channels}</b>\n"
+            "📧 Gmail: {gmail}\n"
             "⏱ Расписание: <b>{frequency}</b> в <b>{time}</b>\n\n"
             "Первый дайджест придёт по расписанию. Можно получить сейчас — кнопка ниже."
         ),
         "main_menu": "🏠 <b>Главное меню</b>\n\nВыберите действие:",
+        "menu_sources": "📋 Источники",
         "menu_channels": "📋 Каналы",
         "menu_schedule": "⏱ Расписание",
         "menu_digest_now": "🔥 Получить сейчас",
@@ -89,11 +90,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "ai_failed": "❌ Ошибка AI ({provider}).",
         "schedule_summary": (
             "<b>Ваше расписание</b>\n\n"
+            "📋 Каналы: <b>{channels}</b> · 📧 Gmail: <b>{gmail}</b>\n"
             "⏱ {frequency} в {time} ({timezone})\n"
             "Последний дайджест: {last}"
         ),
         "last_never": "ещё не было",
         "channels_saved": "✅ Каналы сохранены ({count})",
+        "sources_saved": "✅ Источники сохранены ({count} кан.)",
+        "gmail_saved_hint": "+ Gmail",
+        "gmail_status_linked": "✅ {email}",
+        "gmail_status_not_linked": "<i>не подключён</i>",
+        "btn_gmail_check": "🔄 Проверить Gmail",
+        "no_content": "ℹ️ За период «{label}» нет новых сообщений и писем.",
+        "digest_header_combined": "🔥 *Твой дайджест {period}*",
+        "digest_progress_fetch_combined": "📡 Загружаю источники <b>{label}</b>{dots}",
+        "digest_progress_read_combined": "📥 Читаю контент <b>{label}</b>{dots}",
         "step_platform": (
             "<b>Шаг 2 из 4</b> — откуда собирать дайджест?\n\n"
             "• <b>Telegram</b> — публичные каналы\n"
@@ -122,9 +133,8 @@ STRINGS: dict[str, dict[str, str]] = {
             "<i>Redirect URI:</i> <code>{redirect}</code>"
         ),
         "gmail_oauth_done_notify": (
-            "✅ <b>Gmail подключён</b>\n\n"
-            "Аккаунт: <b>{email}</b>\n\n"
-            "Нажмите «Продолжить» для настройки расписания."
+            "✅ <b>Gmail подключён</b>: {email}\n\n"
+            "Вернитесь в «Источники» и нажмите «Продолжить», когда будете готовы."
         ),
         "gmail_paste_prompt": (
             "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Google.\n\n"
@@ -165,20 +175,19 @@ STRINGS: dict[str, dict[str, str]] = {
     "en": {
         "welcome": (
             "👋 <b>AI Digest Bot</b>\n\n"
-            "Personal AI digests from your Telegram channels.\n\n"
-            "<b>Step 1 of 4</b> — choose your language:"
+            "Personal AI digests from Telegram and Gmail.\n\n"
+            "<b>Step 1 of 3</b> — choose your language:"
         ),
         "step_sources": (
-            "<b>Step 2 of 4</b> — channels for your digest\n\n"
-            "Paste links in <b>one message</b> (up to 10–15 channels):\n"
-            "• one link per line, or\n"
-            "• separated by space / comma\n\n"
-            "Format: <code>@channel</code> or <code>https://t.me/channel</code>\n"
-            "When channels appear in the list — tap «Continue»."
+            "<b>Step 2 of 3</b> — your sources\n\n"
+            "Add <b>Telegram channels</b> (paste links in chat) and/or <b>Gmail</b> (button below).\n"
+            "You can use both — one digest on your schedule.\n\n"
+            "When ready — tap «Continue»."
         ),
         "sources_manage": (
-            "<b>📋 Your channels</b>\n\n"
-            "Send new links in chat or remove with 🗑."
+            "<b>📋 Sources</b>\n\n"
+            "Telegram: paste links in chat, remove with 🗑.\n"
+            "Gmail: connect or disconnect with the button below."
         ),
         "sources_add_prompt": (
             "Paste links (several at once, one per line).\n"
@@ -195,7 +204,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_truncated": "short preview shown",
         "btn_menu": "🏠 Menu",
         "step_frequency": (
-            "<b>Step 3 of 4</b> — how often to send the digest?\n\n"
+            "<b>Step 3 of 3</b> — how often to send the digest?\n\n"
             "Digest period = delivery interval:\n"
             "• every 12h → last 12 hours\n"
             "• daily → last 24 hours\n"
@@ -213,10 +222,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "setup_done": (
             "✅ <b>All set!</b>\n\n"
             "📋 Channels: <b>{channels}</b>\n"
+            "📧 Gmail: {gmail}\n"
             "⏱ Schedule: <b>{frequency}</b> at <b>{time}</b>\n\n"
             "Your first digest will arrive on schedule. Or get one now below."
         ),
         "main_menu": "🏠 <b>Main menu</b>\n\nChoose an action:",
+        "menu_sources": "📋 Sources",
         "menu_channels": "📋 Channels",
         "menu_schedule": "⏱ Schedule",
         "menu_digest_now": "🔥 Get now",
@@ -252,11 +263,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "ai_failed": "❌ AI error ({provider}).",
         "schedule_summary": (
             "<b>Your schedule</b>\n\n"
+            "📋 Channels: <b>{channels}</b> · 📧 Gmail: <b>{gmail}</b>\n"
             "⏱ {frequency} at {time} ({timezone})\n"
             "Last digest: {last}"
         ),
         "last_never": "never",
         "channels_saved": "✅ Channels saved ({count})",
+        "sources_saved": "✅ Sources saved ({count} ch.)",
+        "gmail_saved_hint": "+ Gmail",
+        "gmail_status_linked": "✅ {email}",
+        "gmail_status_not_linked": "<i>not connected</i>",
+        "btn_gmail_check": "🔄 Check Gmail",
+        "no_content": "ℹ️ No new messages or emails for «{label}».",
+        "digest_header_combined": "🔥 *Your digest {period}*",
+        "digest_progress_fetch_combined": "📡 Loading sources <b>{label}</b>{dots}",
+        "digest_progress_read_combined": "📥 Reading content <b>{label}</b>{dots}",
         "step_platform": (
             "<b>Step 2 of 4</b> — where to collect your digest?\n\n"
             "• <b>Telegram</b> — public channels\n"
@@ -285,9 +306,8 @@ STRINGS: dict[str, dict[str, str]] = {
             "<i>Redirect URI:</i> <code>{redirect}</code>"
         ),
         "gmail_oauth_done_notify": (
-            "✅ <b>Gmail connected</b>\n\n"
-            "Account: <b>{email}</b>\n\n"
-            "Tap «Continue» to set up your schedule."
+            "✅ <b>Gmail connected</b>: {email}\n\n"
+            "Go to «Sources» and tap «Continue» when ready."
         ),
         "gmail_paste_prompt": (
             "Send the <b>full URL</b> from your browser address bar after Google authorization.\n\n"

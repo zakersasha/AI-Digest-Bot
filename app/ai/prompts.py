@@ -33,3 +33,18 @@ Key trends:
 
 Emails:
 {messages}"""
+
+COMBINED_DIGEST_PROMPT = """Create a short digest from Telegram channel posts and Gmail emails below.
+
+Write the entire digest in {language_name} only.
+Pick the most important items (skip spam, ads, newsletters noise).
+Up to 12 numbered highlights, 1-2 sentences each. Mix TG and email naturally.
+
+For each item end with the link in parentheses — copy the exact POST_URL from that item.
+Never write <LINK> or the word LINK alone.
+
+Key trends:
+- <trend>
+
+Content:
+{messages}"""

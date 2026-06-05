@@ -120,14 +120,19 @@ async def cb_src_done(callback: CallbackQuery, state: FSMContext, session: Async
         await callback.answer()
         return
 
-    count = await SourceRepository(session).count_active(user.id)
-    if count == 0:
-        await callback.answer(t(lang, "pick_channel_first"), show_alert=True)
+    from app.services.user_sources import has_any_source, has_gmail
+
+    if not await has_any_source(session, user):
+        await callback.answer(t(lang, "pick_source_first"), show_alert=True)
         return
 
+    count = await SourceRepository(session).count_active(user.id)
     current = await state.get_state()
     if current == OnboardingStates.entering_sources.state:
-        await callback.answer(t(lang, "channels_saved", count=count))
+        saved = t(lang, "sources_saved", count=count)
+        if has_gmail(user):
+            saved += " " + t(lang, "gmail_saved_hint")
+        await callback.answer(saved)
         await edit_from_callback(callback, state, t(lang, "step_frequency"), frequency_keyboard(lang))
         return
 

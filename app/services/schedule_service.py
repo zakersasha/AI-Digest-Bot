@@ -41,7 +41,4 @@ def is_scheduled_user_ready(user: User) -> bool:
     ):
         return False
 
-    platform = user.content_platform or "telegram"
-    if platform == "gmail":
-        return bool(user.gmail_tokens_encrypted)
     return True
