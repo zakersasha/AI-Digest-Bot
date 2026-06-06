@@ -5,7 +5,7 @@ from app.ai.openai_urls import resolve_openai_base_url
 from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
 from app.ai.prompts import COMBINED_DIGEST_PROMPT, GMAIL_DIGEST_PROMPT, TELEGRAM_DIGEST_PROMPT
 from app.config import get_settings
-from app.i18n import language_name
+from app.i18n import language_name, t
 from app.utils.http_proxy import create_httpx_client, proxy_host
 from app.utils.logging import get_logger
 
@@ -113,6 +113,7 @@ class OpenAIProvider(AIProvider):
         prompt = template.format(
             messages=joined,
             language_name=language_name(language),
+            link_label=t(language, "digest_link_label"),
         )
         return await self.complete(prompt)
 

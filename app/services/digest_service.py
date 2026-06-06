@@ -19,7 +19,7 @@ from app.services.gmail_service import GmailService
 from app.services.message_selection import interleave_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import shared_telethon_client
-from app.utils.digest_links import repair_digest_link_placeholders
+from app.utils.digest_links import format_digest_links, is_no_new_content_response
 from app.utils.links import channel_username
 from app.utils.logging import get_logger
 
@@ -192,7 +192,8 @@ class DigestService:
         )
 
         if not blocks:
-            raise ValueError(t(language, "no_important"))
+            label = frequency_label(language, frequency)
+            raise ValueError(t(language, "digest_nothing_new", label=label))
 
         try:
             digest_body = await self._ai.generate_digest(blocks, language, platform=platform)
@@ -203,11 +204,18 @@ class DigestService:
             logger.error("ai_digest_failed", provider=self._ai.name, error=str(exc))
             raise RuntimeError(t(language, "ai_failed", provider=self._ai.name)) from exc
 
-        digest_body = repair_digest_link_placeholders(digest_body.strip(), post_urls)
+        digest_body = digest_body.strip()
+        label = frequency_label(language, frequency)
 
-        if not digest_body:
-            logger.error("ai_digest_empty", provider=self._ai.name)
-            raise RuntimeError(t(language, "ai_failed", provider=self._ai.name))
+        if is_no_new_content_response(digest_body):
+            logger.info("digest_no_new_content", user_id=user_id, platform=platform)
+            raise ValueError(t(language, "digest_nothing_new", label=label))
+
+        link_label = t(language, "digest_link_label")
+        digest_body = format_digest_links(digest_body, link_label, post_urls)
+
+        if not digest_body or is_no_new_content_response(digest_body):
+            raise ValueError(t(language, "digest_nothing_new", label=label))
 
         header = digest_title(language, frequency, platform=platform) + "\n\n"
         content = header + digest_body

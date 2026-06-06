@@ -25,7 +25,7 @@ def digest_input_char_budget(
     max_context_tokens: int,
     *,
     max_output_tokens: int,
-    template_chars: int = 420,
+    template_chars: int = 650,
     margin_tokens: int = 80,
 ) -> int:
     """Character budget for message blocks (prompt template and completion excluded)."""
@@ -40,7 +40,7 @@ def digest_prompt_max_chars(
     max_context_tokens: int,
     *,
     max_output_tokens: int,
-    template_chars: int = 420,
+    template_chars: int = 650,
 ) -> int:
     return template_chars + digest_input_char_budget(
         max_context_tokens,

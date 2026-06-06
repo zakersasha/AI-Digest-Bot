@@ -106,6 +106,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "pick_channel_first": "❌ Добавьте хотя бы один канал.",
         "no_messages": "ℹ️ За период «{label}» сообщений нет.",
         "no_important": "ℹ️ Важных сообщений за этот период нет.",
+        "digest_nothing_new": "ℹ️ За период «{label}» ничего важного — только реклама или новостей нет.",
+        "digest_link_label": "перейти",
         "ai_failed": "❌ Ошибка AI ({provider}).",
         "schedule_summary": (
             "<b>Ваше расписание</b>\n\n"
@@ -298,6 +300,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "pick_channel_first": "❌ Select at least one channel first.",
         "no_messages": "ℹ️ No messages for «{label}».",
         "no_important": "ℹ️ No important messages for this period.",
+        "digest_nothing_new": "ℹ️ Nothing important for «{label}» — only ads or no real news.",
+        "digest_link_label": "open",
         "ai_failed": "❌ AI error ({provider}).",
         "schedule_summary": (
             "<b>Your schedule</b>\n\n"

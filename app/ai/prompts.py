@@ -1,50 +1,55 @@
-TELEGRAM_DIGEST_PROMPT = """Create a short digest from these Telegram channel posts.
+NO_NEW_CONTENT_MARKER = "NO_NEW_CONTENT"
 
-Write the entire digest in {language_name} only.
-Pick the most important updates (skip spam, greetings, ads).
-Up to 10 numbered highlights, 1-2 sentences each.
+_LINK_RULES = """
+Link format for each item: one markdown hyperlink [{link_label}](POST_URL) — copy POST_URL exactly.
+Never use raw URLs in parentheses. Never write <LINK> or LINK alone.
+"""
 
-For each item you MUST end with the post link in parentheses — copy the exact POST_URL
-from that post (starts with https://t.me/). Never write <LINK> or the word LINK alone.
+_SKIP_RULES = """
+Always SKIP and never include in the digest:
+- Ads, sponsored posts, promos, affiliate links, discounts, giveaways, "реклама", #ad
+- Greetings, memes, engagement bait, empty reposts
+- Gmail: marketing newsletters, promos, spam, bulk automated mail (unless security/billing critical)
+"""
 
-Example:
-1. Metro line extension announced. (https://t.me/moscowmap/76844)
+_SELECTION_RULES = """
+Select ONLY genuinely important items (0–7). Do NOT summarize every message.
+Quality over quantity: one strong item beats ten weak ones.
+If nothing important remains, or only ads/spam/promo — respond with exactly:
+NO_NEW_CONTENT
+(no other text, no header, no list)
+"""
 
-Key trends:
-- <trend>
+TELEGRAM_DIGEST_PROMPT = (
+    "Create a digest from Telegram channel posts.\n\n"
+    "Write in {language_name} only.\n"
+    f"{_SKIP_RULES.strip()}\n"
+    f"{_SELECTION_RULES.strip()}\n"
+    f"{_LINK_RULES.strip()}\n\n"
+    "Example item:\n"
+    "1. Metro line extension announced for 2026. [{link_label}](https://t.me/moscowmap/76844)\n\n"
+    "Posts:\n"
+    "{messages}"
+)
 
-Posts:
-{messages}"""
+GMAIL_DIGEST_PROMPT = (
+    "Create a digest from Gmail inbox emails.\n\n"
+    "Write in {language_name} only.\n"
+    f"{_SKIP_RULES.strip()}\n"
+    f"{_SELECTION_RULES.strip()}\n"
+    f"{_LINK_RULES.strip()}\n\n"
+    "Example item:\n"
+    "1. AWS invoice for March needs payment. [{link_label}](https://mail.google.com/mail/u/0/#inbox/abc123)\n\n"
+    "Emails:\n"
+    "{messages}"
+)
 
-GMAIL_DIGEST_PROMPT = """Create a short digest from these Gmail inbox emails.
-
-Write the entire digest in {language_name} only.
-Pick the most important emails (skip newsletters spam, promos, automated noise).
-Up to 10 numbered highlights, 1-2 sentences each.
-
-For each item you MUST end with the email link in parentheses — copy the exact POST_URL
-from that email. Never write <LINK> or the word LINK alone.
-
-Example:
-1. Invoice from AWS for March. (https://mail.google.com/mail/u/0/#inbox/abc123)
-
-Key trends:
-- <trend>
-
-Emails:
-{messages}"""
-
-COMBINED_DIGEST_PROMPT = """Create a short digest from Telegram channel posts and Gmail emails below.
-
-Write the entire digest in {language_name} only.
-Pick the most important items (skip spam, ads, newsletters noise).
-Up to 12 numbered highlights, 1-2 sentences each. Mix TG and email naturally.
-
-For each item end with the link in parentheses — copy the exact POST_URL from that item.
-Never write <LINK> or the word LINK alone.
-
-Key trends:
-- <trend>
-
-Content:
-{messages}"""
+COMBINED_DIGEST_PROMPT = (
+    "Create a digest from Telegram posts and Gmail emails.\n\n"
+    "Write in {language_name} only.\n"
+    f"{_SKIP_RULES.strip()}\n"
+    f"{_SELECTION_RULES.strip()}\n"
+    f"{_LINK_RULES.strip()}\n\n"
+    "Content:\n"
+    "{messages}"
+)

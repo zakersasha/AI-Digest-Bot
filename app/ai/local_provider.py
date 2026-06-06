@@ -5,7 +5,7 @@ from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_t
 from app.ai.prompts import COMBINED_DIGEST_PROMPT, GMAIL_DIGEST_PROMPT, TELEGRAM_DIGEST_PROMPT
 from app.ai.response import completion_finish_reason, extract_chat_content
 from app.config import get_settings
-from app.i18n import language_name
+from app.i18n import language_name, t
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -128,5 +128,6 @@ class LocalAIProvider(AIProvider):
         prompt = template.format(
             messages=joined,
             language_name=language_name(language),
+            link_label=t(language, "digest_link_label"),
         )
         return await self.complete(prompt)

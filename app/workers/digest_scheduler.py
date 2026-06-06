@@ -131,6 +131,10 @@ class DigestScheduler:
                 content = await digest_service.generate_scheduled(user_id, platform, language)
             except ValueError as exc:
                 logger.info("scheduled_digest_skipped", user_id=user_id, platform=platform, reason=str(exc))
+                try:
+                    await self._bot.send_message(user.telegram_id, str(exc))
+                except Exception:
+                    pass
                 return
             except Exception:
                 logger.exception("scheduled_digest_failed", user_id=user_id, platform=platform)

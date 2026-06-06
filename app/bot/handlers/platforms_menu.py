@@ -263,7 +263,7 @@ async def cb_test_digest(
             )
             await deliver_digest(callback, state, lang, content)
         except ValueError as exc:
-            await edit_from_callback(callback, state, f"ℹ️ {exc}", back_to_menu_keyboard(lang))
+            await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
         except RuntimeError as exc:
             await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
         except Exception:
