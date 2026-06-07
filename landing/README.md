@@ -115,6 +115,8 @@ docker compose exec nginx nginx -s reload
 
 Убедитесь, что в CV-конфиге (`nginx/conf.d/*.conf`) на `443` указан **конкретный** `server_name` вашего CV-домена, а не `default_server` без ограничений.
 
+**Ошибка** `options-ssl-nginx.conf failed` — в Docker certbot часто не кладёт этот файл. Конфиг Briefly использует встроенные SSL-настройки, certbot-файлы не нужны.
+
 ### Шаг 4 — Проверка
 
 ```bash
