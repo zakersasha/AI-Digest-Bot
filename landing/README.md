@@ -75,6 +75,46 @@ CERTBOT_EMAIL=you@brieflybot.pro bash landing/scripts/server-setup.sh
 5. Переключает на HTTPS-конфиг
 6. Делает `docker compose exec nginx nginx -s reload`
 
+### HTTPS редиректит на CV-сайт?
+
+**Симптом:** `http://brieflybot.pro` — лендинг Briefly, `https://brieflybot.pro` — CV-портфолио.
+
+**Причина:** на порту 443 нет `server_name brieflybot.pro` (только HTTP-конфиг). Nginx отдаёт CV как `default_server`.
+
+**Исправление на сервере:**
+
+```bash
+cd ~/AI-Digest-Bot
+CERTBOT_EMAIL=ваш@email.com bash landing/scripts/fix-https.sh
+```
+
+Или вручную:
+
+```bash
+# 1. Есть ли сертификат?
+ls ~/cv_portfolio/certbot/conf/live/brieflybot.pro/
+
+# 2. Если нет — выпустить (webroot уже в docker)
+certbot certonly --webroot \
+  -w ~/cv_portfolio/certbot/www \
+  --config-dir ~/cv_portfolio/certbot/conf \
+  --work-dir ~/cv_portfolio/certbot/work \
+  --logs-dir ~/cv_portfolio/certbot/logs \
+  -d brieflybot.pro -d www.brieflybot.pro \
+  --email ваш@email.com --agree-tos --no-eff-email
+
+# 3. HTTPS-конфиг вместо HTTP-only
+cp ~/AI-Digest-Bot/landing/nginx/brieflybot.pro.conf \
+   ~/cv_portfolio/nginx/conf.d/brieflybot.pro.conf
+
+# 4. Проверка и reload
+cd ~/cv_portfolio
+docker compose exec nginx nginx -t
+docker compose exec nginx nginx -s reload
+```
+
+Убедитесь, что в CV-конфиге (`nginx/conf.d/*.conf`) на `443` указан **конкретный** `server_name` вашего CV-домена, а не `default_server` без ограничений.
+
 ### Шаг 4 — Проверка
 
 ```bash
