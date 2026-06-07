@@ -1,0 +1,17 @@
+# Add to ~/cv_portfolio/docker-compose.yml — nginx service volumes + extra_hosts.
+# Paths assume repo at /root/AI-Digest-Bot (adjust if yours differ).
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    volumes:
+      # existing mounts stay unchanged, add:
+      - /root/AI-Digest-Bot/landing/www:/var/www/brieflybot.pro:ro
+      - /root/AI-Digest-Bot/landing/certbot:/var/www/certbot:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+
+# If options-ssl-nginx.conf is missing inside container, on host run once:
+#   certbot install --nginx   (skip if file exists)
+# Or copy manually:
+#   cp /etc/letsencrypt/options-ssl-nginx.conf /root/cv_portfolio/nginx/letsencrypt/
+# and mount: - /root/cv_portfolio/nginx/letsencrypt:/etc/letsencrypt:ro

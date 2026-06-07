@@ -1,6 +1,6 @@
 # Briefly landing — brieflybot.pro
 
-Статический лендинг + публичные Privacy Policy и Terms of Service для Google OAuth и маркетинга.
+Лендинг + Privacy Policy + Terms of Service для Google OAuth.
 
 ## URL для Google Cloud Console
 
@@ -11,109 +11,115 @@
 | Homepage | `https://brieflybot.pro/` |
 | Gmail OAuth redirect | `https://brieflybot.pro/oauth/gmail/callback` |
 
-Короткие алиасы: `/privacy` → `/privacy-policy`, `/terms` → `/terms-of-service`.
+---
 
-## Структура
+## Ваш сервер: nginx в Docker (`~/cv_portfolio/nginx`)
+
+У вас **нет** `/etc/nginx` на хосте. Nginx живёт в проекте `cv_portfolio`:
 
 ```
-landing/
-  index.html              ← копия briefly-landing.html (деплой)
-  docs/
-    briefly-privacy-policy.pdf
-    briefly-terms-of-service.pdf
-  nginx/
-    brieflybot.pro.http.conf   ← до получения SSL
-    brieflybot.pro.conf          ← production HTTPS
-  scripts/
-    deploy.sh
-    setup-ssl.sh
+~/cv_portfolio/nginx/nginx.conf
+~/cv_portfolio/nginx/conf.d/        ← сюда кладём brieflybot.pro.conf
 ```
 
-## Деплой на сервер с уже работающим nginx
+Статика лендинга:
 
-Ваш основной `nginx.conf` **не трогаем** — только добавляем файл в `conf.d/`:
+```
+~/AI-Digest-Bot/landing/www/        ← index.html + docs/
+~/AI-Digest-Bot/landing/certbot/      ← ACME challenge для Let's Encrypt
+```
+
+### Шаг 1 — DNS
+
+A-запись `brieflybot.pro` → `37.230.114.25` (ваш IP).
+
+### Шаг 2 — Volumes в docker-compose cv_portfolio
+
+Откройте `~/cv_portfolio/docker-compose.yml`, в сервис **nginx** добавьте (см. `landing/cv_portfolio.volumes.example.txt`):
+
+```yaml
+extra_hosts:
+  - "host.docker.internal:host-gateway"
+
+volumes:
+  - /root/AI-Digest-Bot/landing/www:/var/www/brieflybot.pro:ro
+  - /root/AI-Digest-Bot/landing/certbot:/var/www/certbot:ro
+  - /etc/letsencrypt:/etc/letsencrypt:ro
+```
+
+Перезапустите nginx:
 
 ```bash
-include /etc/nginx/conf.d/*.conf;
+cd ~/cv_portfolio
+docker compose up -d nginx
 ```
 
-### 1. DNS
+### Шаг 3 — Деплой (на сервере, не с Windows)
 
-A-запись `brieflybot.pro` → IP сервера.  
-Опционально `www.brieflybot.pro` → тот же IP (редирект на apex).
-
-### 2. Загрузить файлы
-
-С локальной машины (из корня репозитория):
+На сервере уже есть `~/AI-Digest-Bot/`. Обновите код и запустите setup:
 
 ```bash
-bash landing/scripts/deploy.sh root@YOUR_SERVER_IP
-```
-
-На сервере вручную:
-
-```bash
-mkdir -p /var/www/brieflybot.pro/docs /var/www/certbot
-# скопировать index.html и PDF из landing/
-chown -R nginx:nginx /var/www/brieflybot.pro /var/www/certbot
-```
-
-### 3. Nginx (первый раз — без SSL)
-
-```bash
-cp landing/nginx/brieflybot.pro.http.conf /etc/nginx/conf.d/brieflybot.pro.conf
-nginx -t && systemctl reload nginx
-```
-
-Проверка: `http://brieflybot.pro/` и PDF по HTTP.
-
-### 4. Let's Encrypt + автообновление
-
-```bash
-CERTBOT_EMAIL=you@brieflybot.pro sudo -E bash landing/scripts/setup-ssl.sh
+cd ~/AI-Digest-Bot
+git pull
+CERTBOT_EMAIL=you@brieflybot.pro bash landing/scripts/server-setup.sh
 ```
 
 Скрипт:
-1. Ставит HTTP-конфиг с `/.well-known/acme-challenge/`
-2. Выпускает сертификат через `certbot certonly --webroot`
-3. Подключает HTTPS-конфиг
-4. Включает `certbot.timer` и hook `reload nginx` после renew
+1. Копирует `briefly-landing.html` → `landing/www/index.html`
+2. Копирует PDF из `docs/`
+3. Кладёт `brieflybot.pro.conf` в `~/cv_portfolio/nginx/conf.d/`
+4. Выпускает SSL через certbot (webroot)
+5. Переключает на HTTPS-конфиг
+6. Делает `docker compose exec nginx nginx -s reload`
 
-Проверка продления:
+### Шаг 4 — Проверка
 
 ```bash
+curl -I http://brieflybot.pro/
+curl -I https://brieflybot.pro/privacy-policy
 certbot renew --dry-run
 ```
 
-### 5. Обновление только статики
+### Обновление только лендинга
 
 ```bash
-bash landing/scripts/deploy.sh root@YOUR_SERVER_IP
-# SSL-конфиг менять не нужно
+cd ~/AI-Digest-Bot && git pull
+bash landing/scripts/server-setup.sh
+# без CERTBOT_EMAIL — сертификат уже есть, только обновит файлы
 ```
+
+---
 
 ## Gmail OAuth
 
-В `.env` бота:
+`.env` бота:
 
 ```env
 GMAIL_REDIRECT_URI=https://brieflybot.pro/oauth/gmail/callback
 ```
 
-В Google Cloud Console → OAuth client → Authorized redirect URIs — тот же URL.
+Nginx проксирует `/oauth/` → `host.docker.internal:8080` (бот в docker на хосте).
 
-Nginx проксирует `/oauth/` на `127.0.0.1:8080` (docker-compose `bot` service).
+Если OAuth не работает, на сервере:
 
-## Лендинг: ссылка на бота
+```bash
+OAUTH_UPSTREAM=172.17.0.1:8080 bash landing/scripts/server-setup.sh
+```
 
-В `briefly-landing.html` / `landing/index.html` замените:
+---
+
+## Ссылка на бота в лендинге
+
+В `briefly-landing.html`:
 
 ```javascript
 const BOT_URL = 'https://t.me/YourBotUsername';
 ```
 
-## Конфликт с другими сайтами
+---
 
-Конфиг `brieflybot.pro.conf` слушает только `server_name brieflybot.pro www.brieflybot.pro` — существующие vhost'ы на том же nginx не затрагиваются.
+## Деплой с Windows
 
-Порт 443/80 общие: убедитесь, что другой default_server не перехватывает этот домен (обычно `server_name` решает это автоматически).
+`bash` на Windows нет — **всё делается на сервере** через `git pull` + `server-setup.sh`.
+
+Альтернатива: залить файлы через WinSCP в `~/AI-Digest-Bot/landing/www/` и conf в `~/cv_portfolio/nginx/conf.d/`.
