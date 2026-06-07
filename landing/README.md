@@ -142,9 +142,18 @@ landing/www/
 ```bash
 cd ~/AI-Digest-Bot
 git pull
-bash landing/scripts/sync-site.sh
+bash landing/scripts/sync-site.sh   # обязательно после каждого pull
 cp landing/nginx/brieflybot.pro.conf ~/cv_portfolio/nginx/conf.d/brieflybot.pro.conf
 cd ~/cv_portfolio && docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
+cd ~/AI-Digest-Bot && docker compose up -d
+```
+
+Если `git pull` ругается на `landing/www/index.html` — удалите локальные копии и повторите:
+
+```bash
+rm -rf landing/www/*
+git pull
+bash landing/scripts/sync-site.sh
 ```
 
 ---
