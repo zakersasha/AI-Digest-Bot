@@ -46,11 +46,7 @@ reload_nginx() {
 }
 
 prepare_site_files() {
-  mkdir -p "${SITE_ROOT}/docs" "${WEBROOT}"
-  cp "${PROJECT_DIR}/briefly-landing.html" "${SITE_ROOT}/index.html"
-  cp "${PROJECT_DIR}/docs/Briefly Privacy Policy.pdf" "${SITE_ROOT}/docs/briefly-privacy-policy.pdf"
-  cp "${PROJECT_DIR}/docs/Briefly Terms of Service.pdf" "${SITE_ROOT}/docs/briefly-terms-of-service.pdf"
-  echo "Site files → ${SITE_ROOT}"
+  bash "${SCRIPT_DIR}/sync-site.sh"
 }
 
 install_nginx_conf() {

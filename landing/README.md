@@ -125,13 +125,25 @@ curl -I https://brieflybot.pro/privacy-policy
 certbot renew --dry-run
 ```
 
-### Обновление только лендинга
+### Обновление лендинга или PDF
+
+Nginx отдаёт файлы из **`landing/www/`**, не из `docs/` напрямую.
 
 ```bash
-cd ~/AI-Digest-Bot && git pull
-bash landing/scripts/server-setup.sh
-# без CERTBOT_EMAIL — сертификат уже есть, только обновит файлы
+cd ~/AI-Digest-Bot
+git pull
+bash landing/scripts/sync-site.sh
 ```
+
+Проверка, что файлы совпали:
+
+```bash
+md5sum docs/*.pdf landing/www/docs/*.pdf
+```
+
+Если md5 разные — `sync-site.sh` не запускали или обновили не те файлы.
+
+Браузер мог закэшировать PDF — откройте в инкогнито или `Ctrl+Shift+R`.
 
 ---
 
