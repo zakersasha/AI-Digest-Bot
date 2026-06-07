@@ -125,25 +125,27 @@ curl -I https://brieflybot.pro/privacy-policy
 certbot renew --dry-run
 ```
 
-### Обновление лендинга или PDF
+### Обновление лендинга или legal-страниц
 
-Nginx отдаёт файлы из **`landing/www/`**, не из `docs/` напрямую.
+Nginx отдаёт файлы из **`landing/www/`**:
+
+```
+landing/www/
+  index.html
+  privacy-policy.html
+  terms-of-service.html
+  assets/shared.css
+```
+
+Исходники legal: `landing/privacy-policy.html`, `landing/terms-of-service.html` (контент из `docs/`).
 
 ```bash
 cd ~/AI-Digest-Bot
 git pull
 bash landing/scripts/sync-site.sh
+cp landing/nginx/brieflybot.pro.conf ~/cv_portfolio/nginx/conf.d/brieflybot.pro.conf
+cd ~/cv_portfolio && docker compose exec nginx nginx -t && docker compose exec nginx nginx -s reload
 ```
-
-Проверка, что файлы совпали:
-
-```bash
-md5sum docs/*.pdf landing/www/docs/*.pdf
-```
-
-Если md5 разные — `sync-site.sh` не запускали или обновили не те файлы.
-
-Браузер мог закэшировать PDF — откройте в инкогнито или `Ctrl+Shift+R`.
 
 ---
 
