@@ -1,7 +1,3 @@
-# Built by landing/scripts/sync-site.sh — do not commit
-landing/www/*
-!landing/www/.gitkeep
-
 .env
 .venv/
 venv/

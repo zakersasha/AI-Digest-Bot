@@ -1,157 +1,415 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Privacy Policy - Briefly</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Briefly Privacy Policy — how we collect, use, and protect your data.">
+  <title>Privacy Policy — Briefly</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d1240;
+  --surface: #111850;
+  --card: #161e5c;
+  --border: #1e2870;
+  --border2: #2a3480;
+  --ink: #f0f2ff;
+  --ink2: #a0a8d0;
+  --muted: #5a6090;
+  --accent: #f5a8c8;
+  --accent2: #ff7eb3;
+  --accent-dim: rgba(245,168,200,0.15);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Geist', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+a { color: var(--accent); }
+
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 0 clamp(16px, 4vw, 40px);
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(13,18,64,0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-logo {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.nav-logo span { color: var(--accent); }
+
+.nav-cta {
+  background: var(--accent);
+  color: #0d1240;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.nav-cta:hover { opacity: 0.85; }
+
+.nav-cta.ghost {
+  background: transparent;
+  color: var(--ink2);
+  border: 1px solid var(--border2);
+}
+
+.nav-cta.ghost:hover {
+  color: var(--ink);
+  border-color: var(--ink2);
+  opacity: 1;
+}
+
+footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 32px clamp(16px, 4vw, 40px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--surface);
+}
+
+.footer-logo {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--ink2);
+  text-decoration: none;
+}
+
+.footer-logo span { color: var(--accent); }
+
+.footer-copy {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-family: 'Geist Mono', ui-monospace, monospace;
+}
+
+.footer-links {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.footer-links a {
+  font-size: 0.75rem;
+  color: var(--ink2);
+  text-decoration: none;
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover { color: var(--accent); }
+
+/* Legal pages */
+.legal-page {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 100px clamp(16px, 4vw, 24px) 80px;
+}
+
+.legal-header {
+  margin-bottom: 40px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-tag {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+.legal-header h1 {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+
+.legal-meta {
+  font-size: 0.9rem;
+  color: var(--ink2);
+}
+
+.legal-meta strong { color: var(--ink); font-weight: 500; }
+
+.legal-body section {
+  margin-bottom: 32px;
+}
+
+.legal-body h2 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent);
+}
+
+.legal-body h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink2);
+  margin: 16px 0 8px;
+}
+
+.legal-body p {
+  font-size: 0.92rem;
+  color: var(--ink2);
+  line-height: 1.75;
+  margin-bottom: 12px;
+}
+
+.legal-body ul {
+  margin: 0 0 12px 0;
+  padding-left: 1.25rem;
+}
+
+.legal-body li {
+  font-size: 0.92rem;
+  color: var(--ink2);
+  line-height: 1.7;
+  margin-bottom: 6px;
+}
+
+.legal-body li::marker { color: var(--accent); }
+
+.legal-contact {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-top: 8px;
+}
+
+.legal-contact a {
+  word-break: break-all;
+}
+
+@media (max-width: 768px) {
+  nav { height: 56px; }
+  .nav-logo { font-size: 1.15rem; }
+  .nav-cta { font-size: 0.72rem; padding: 7px 14px; }
+  .legal-page { padding-top: 88px; }
+  footer {
+    flex-direction: column;
+    text-align: center;
+    justify-content: center;
+  }
+  .footer-links { justify-content: center; gap: 12px 20px; }
+}
+
+@media (max-width: 380px) {
+  .nav-cta.ghost { display: none; }
+}
+
+</style>
 </head>
 <body>
 
-<h1>Briefly Privacy Policy</h1>
+<nav>
+  <a href="/" class="nav-logo">briefly<span>.</span></a>
+  <a href="/terms-of-service" class="nav-cta ghost">Terms</a>
+</nav>
 
-<p><strong>Effective Date:</strong> June 7, 2026</p>
+<main class="legal-page">
+  <header class="legal-header">
+    <div class="section-tag">Legal</div>
+    <h1>Privacy Policy</h1>
+    <p class="legal-meta"><strong>Effective Date:</strong> June 7, 2026</p>
+  </header>
 
-<h2>1. Introduction</h2>
+  <article class="legal-body">
+    <section>
+      <h2>1. Introduction</h2>
+      <p>Briefly is committed to protecting your privacy and handling your data responsibly. This Privacy Policy explains what information we collect, how we use it, and the choices available to you.</p>
+    </section>
 
-<p>
-Briefly is committed to protecting your privacy and handling your data responsibly.
-This Privacy Policy explains what information we collect, how we use it, and the choices available to you.
-</p>
+    <section>
+      <h2>2. Information We Collect</h2>
+      <h3>Account Information</h3>
+      <ul>
+        <li>Telegram account identifier</li>
+        <li>Google account identifier</li>
+        <li>LinkedIn account identifier</li>
+        <li>Basic profile information provided by connected services</li>
+      </ul>
+      <h3>Connected Source Information</h3>
+      <ul>
+        <li>Telegram channels and groups selected by the user</li>
+        <li>Gmail messages, newsletters, and metadata authorized by the user</li>
+        <li>LinkedIn content and activity authorized by the user</li>
+      </ul>
+      <h3>Usage Information</h3>
+      <ul>
+        <li>Service interactions</li>
+        <li>Selected preferences</li>
+        <li>Digest generation history</li>
+        <li>Application logs and diagnostics</li>
+      </ul>
+    </section>
 
-<h2>2. Information We Collect</h2>
+    <section>
+      <h2>3. How We Use Information</h2>
+      <ul>
+        <li>Generate summaries and insights</li>
+        <li>Identify trends and important updates</li>
+        <li>Filter information noise</li>
+        <li>Improve service quality</li>
+        <li>Personalize user experience</li>
+        <li>Provide support and troubleshooting</li>
+      </ul>
+    </section>
 
-<h3>Account Information</h3>
+    <section>
+      <h2>4. AI Processing</h2>
+      <p>Content processed through Briefly may be analyzed by artificial intelligence systems. Depending on configuration, AI processing may be performed using self-hosted AI models or trusted third-party AI providers.</p>
+    </section>
 
-<ul>
-<li>Telegram account identifier</li>
-<li>Google account identifier</li>
-<li>LinkedIn account identifier</li>
-<li>Basic profile information provided by connected services</li>
-</ul>
+    <section>
+      <h2>5. Google User Data</h2>
+      <ul>
+        <li>We access Gmail data only with your authorization.</li>
+        <li>Gmail data is used solely to generate summaries, insights, and digest functionality requested by you.</li>
+        <li>We do not sell Gmail data.</li>
+        <li>We do not use Gmail data for advertising purposes.</li>
+        <li>We do not transfer Gmail data to third parties except as necessary to provide the Service.</li>
+        <li>Google user data is not used to train generalized artificial intelligence models.</li>
+        <li>Access permissions may be revoked by the user at any time.</li>
+      </ul>
+    </section>
 
-<h3>Connected Source Information</h3>
+    <section>
+      <h2>6. LinkedIn Data</h2>
+      <ul>
+        <li>We access only data authorized through LinkedIn permissions.</li>
+        <li>LinkedIn content is used exclusively to provide monitoring, analysis, and summarization features requested by the user.</li>
+        <li>We do not sell LinkedIn data.</li>
+      </ul>
+    </section>
 
-<ul>
-<li>Telegram channels and groups selected by the user</li>
-<li>Gmail messages, newsletters, and metadata authorized by the user</li>
-<li>LinkedIn content and activity authorized by the user</li>
-</ul>
+    <section>
+      <h2>7. Telegram Data</h2>
+      <ul>
+        <li>We may access channels, groups, and content selected by the user.</li>
+        <li>We do not intentionally access private conversations that are not required for requested functionality.</li>
+        <li>Telegram session credentials are stored securely and protected using encryption.</li>
+        <li>Telegram data is used solely for generating summaries and insights requested by the user.</li>
+      </ul>
+    </section>
 
-<h3>Usage Information</h3>
+    <section>
+      <h2>8. Data Sharing</h2>
+      <p>We do not sell personal information. Information may be shared only with infrastructure providers, cloud hosting providers, AI processing providers, or legal authorities when required by law.</p>
+    </section>
 
-<ul>
-<li>Service interactions</li>
-<li>Selected preferences</li>
-<li>Digest generation history</li>
-<li>Application logs and diagnostics</li>
-</ul>
+    <section>
+      <h2>9. Data Security</h2>
+      <p>We implement reasonable technical and organizational measures to protect user information, including encryption of sensitive credentials, secure storage of authentication tokens, access controls, monitoring, and logging.</p>
+    </section>
 
-<h2>3. How We Use Information</h2>
+    <section>
+      <h2>10. Data Retention</h2>
+      <p>We retain data only for as long as necessary to provide the Service and comply with legal obligations. Users may request deletion at any time.</p>
+    </section>
 
-<ul>
-<li>Generate summaries and insights</li>
-<li>Identify trends and important updates</li>
-<li>Filter information noise</li>
-<li>Improve service quality</li>
-<li>Personalize user experience</li>
-<li>Provide support and troubleshooting</li>
-</ul>
+    <section>
+      <h2>11. Your Rights</h2>
+      <ul>
+        <li>Request access to your data</li>
+        <li>Request correction of inaccurate information</li>
+        <li>Request deletion of your data</li>
+        <li>Disconnect integrations</li>
+        <li>Withdraw consent</li>
+      </ul>
+    </section>
 
-<h2>4. AI Processing</h2>
+    <section>
+      <h2>12. Children's Privacy</h2>
+      <p>The Service is not intended for individuals under the age of 13.</p>
+    </section>
 
-<p>
-Content processed through Briefly may be analyzed by artificial intelligence systems.
-Depending on configuration, AI processing may be performed using self-hosted AI models
-or trusted third-party AI providers.
-</p>
+    <section>
+      <h2>13. International Data Processing</h2>
+      <p>Depending on infrastructure providers and integrations used, user data may be processed outside the user's country of residence.</p>
+    </section>
 
-<h2>5. Google User Data</h2>
+    <section>
+      <h2>14. Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time. Updated versions will be published with a revised effective date.</p>
+    </section>
 
-<ul>
-<li>We access Gmail data only with your authorization.</li>
-<li>Gmail data is used solely to generate summaries, insights, and digest functionality requested by you.</li>
-<li>We do not sell Gmail data.</li>
-<li>We do not use Gmail data for advertising purposes.</li>
-<li>We do not transfer Gmail data to third parties except as necessary to provide the Service.</li>
-<li>Google user data is not used to train generalized artificial intelligence models.</li>
-<li>Access permissions may be revoked by the user at any time.</li>
-</ul>
+    <section>
+      <h2>15. Contact</h2>
+      <div class="legal-contact">
+        <p>Questions about this policy:</p>
+        <p><a href="mailto:kharlamov.aleksandr99@gmail.com">kharlamov.aleksandr99@gmail.com</a></p>
+      </div>
+    </section>
+  </article>
+</main>
 
-<h2>6. LinkedIn Data</h2>
-
-<ul>
-<li>We access only data authorized through LinkedIn permissions.</li>
-<li>LinkedIn content is used exclusively to provide monitoring, analysis, and summarization features requested by the user.</li>
-<li>We do not sell LinkedIn data.</li>
-</ul>
-
-<h2>7. Telegram Data</h2>
-
-<ul>
-<li>We may access channels, groups, and content selected by the user.</li>
-<li>We do not intentionally access private conversations that are not required for requested functionality.</li>
-<li>Telegram session credentials are stored securely and protected using encryption.</li>
-<li>Telegram data is used solely for generating summaries and insights requested by the user.</li>
-</ul>
-
-<h2>8. Data Sharing</h2>
-
-<p>
-We do not sell personal information.
-Information may be shared only with infrastructure providers,
-cloud hosting providers, AI processing providers, or legal authorities when required by law.
-</p>
-
-<h2>9. Data Security</h2>
-
-<p>
-We implement reasonable technical and organizational measures to protect user information,
-including encryption of sensitive credentials, secure storage of authentication tokens,
-access controls, monitoring, and logging.
-</p>
-
-<h2>10. Data Retention</h2>
-
-<p>
-We retain data only for as long as necessary to provide the Service and comply with legal obligations.
-Users may request deletion at any time.
-</p>
-
-<h2>11. Your Rights</h2>
-
-<ul>
-<li>Request access to your data</li>
-<li>Request correction of inaccurate information</li>
-<li>Request deletion of your data</li>
-<li>Disconnect integrations</li>
-<li>Withdraw consent</li>
-</ul>
-
-<h2>12. Children's Privacy</h2>
-
-<p>
-The Service is not intended for individuals under the age of 13.
-</p>
-
-<h2>13. International Data Processing</h2>
-
-<p>
-Depending on infrastructure providers and integrations used,
-user data may be processed outside the user's country of residence.
-</p>
-
-<h2>14. Changes to This Policy</h2>
-
-<p>
-We may update this Privacy Policy from time to time.
-Updated versions will be published with a revised effective date.
-</p>
-
-<h2>15. Contact</h2>
-
-<p>
-Email: kharlamov.aleksandr99@gmail.com
-</p>
+<footer>
+  <a href="/" class="footer-logo">briefly<span>.</span></a>
+  <nav class="footer-links" aria-label="Legal">
+    <a href="/privacy-policy">Privacy Policy</a>
+    <a href="/terms-of-service">Terms of Service</a>
+    <a href="mailto:kharlamov.aleksandr99@gmail.com">Contact</a>
+  </nav>
+  <div class="footer-copy">© 2026 Briefly · brieflybot.pro</div>
+</footer>
 
 </body>
 </html>
