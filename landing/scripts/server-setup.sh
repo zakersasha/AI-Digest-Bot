@@ -25,7 +25,8 @@ NGINX_CONF_D="${NGINX_DIR}/conf.d"
 CV_COMPOSE_DIR="${CV_COMPOSE_DIR:-${HOME}/cv_portfolio}"
 
 SITE_ROOT="${SITE_ROOT:-${LANDING_DIR}/www}"
-WEBROOT="${WEBROOT:-${LANDING_DIR}/certbot}"
+WEBROOT="${WEBROOT:-${CV_COMPOSE_DIR}/certbot/www}"
+CERT_DIR="${CERT_DIR:-${CV_COMPOSE_DIR}/certbot/conf}"
 OAUTH_UPSTREAM="${OAUTH_UPSTREAM:-host.docker.internal:8080}"
 
 reload_nginx() {
@@ -69,9 +70,13 @@ issue_certificate() {
     echo "Installing certbot..."
     apt-get update && apt-get install -y certbot
   fi
+  mkdir -p "${WEBROOT}" "${CERT_DIR}" "${CV_COMPOSE_DIR}/certbot/work" "${CV_COMPOSE_DIR}/certbot/logs"
   certbot certonly \
     --webroot \
     -w "${WEBROOT}" \
+    --config-dir "${CERT_DIR}" \
+    --work-dir "${CV_COMPOSE_DIR}/certbot/work" \
+    --logs-dir "${CV_COMPOSE_DIR}/certbot/logs" \
     -d "${DOMAIN}" \
     -d "www.${DOMAIN}" \
     --email "${EMAIL}" \
@@ -94,7 +99,7 @@ EOF
 }
 
 has_certificate() {
-  [[ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]
+  [[ -f "${CERT_DIR}/live/${DOMAIN}/fullchain.pem" ]]
 }
 
 echo "=== Briefly landing setup ==="

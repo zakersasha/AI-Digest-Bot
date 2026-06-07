@@ -1,17 +1,59 @@
-# Add to ~/cv_portfolio/docker-compose.yml — nginx service volumes + extra_hosts.
-# Paths assume repo at /root/AI-Digest-Bot (adjust if yours differ).
+# Итоговый docker-compose.yml для ~/cv_portfolio
+# Добавлено для brieflybot.pro: extra_hosts + volume landing/www
+# Certbot уже использует ./certbot/conf и ./certbot/www — менять не нужно
 
+services:
+  web:
+    build: .
+    container_name: cv_portfolio_app
+    restart: unless-stopped
+    volumes:
+      - ./static:/app/static
+      - ./templates:/app/templates
+    networks:
+      - cv_network
+    environment:
+      - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+        reservations:
+          memory: 256M
+    depends_on:
+      - nginx
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: cv_portfolio_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-
     volumes:
-      # existing mounts stay unchanged, add:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./static:/app/static:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
       - /root/AI-Digest-Bot/landing/www:/var/www/brieflybot.pro:ro
-      - /root/AI-Digest-Bot/landing/certbot:/var/www/certbot:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - cv_network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
 
-# If options-ssl-nginx.conf is missing inside container, on host run once:
-#   certbot install --nginx   (skip if file exists)
-# Or copy manually:
-#   cp /etc/letsencrypt/options-ssl-nginx.conf /root/cv_portfolio/nginx/letsencrypt/
-# and mount: - /root/cv_portfolio/nginx/letsencrypt:/etc/letsencrypt:ro
+networks:
+  cv_network:
+    driver: bridge

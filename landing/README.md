@@ -33,21 +33,24 @@
 
 A-запись `brieflybot.pro` → `37.230.114.25` (ваш IP).
 
-### Шаг 2 — Volumes в docker-compose cv_portfolio
+### Шаг 2 — docker-compose cv_portfolio
 
-Откройте `~/cv_portfolio/docker-compose.yml`, в сервис **nginx** добавьте (см. `landing/cv_portfolio.volumes.example.txt`):
+В `~/cv_portfolio/docker-compose.yml` в сервис **nginx** добавьте только:
 
 ```yaml
 extra_hosts:
   - "host.docker.internal:host-gateway"
-
-volumes:
-  - /root/AI-Digest-Bot/landing/www:/var/www/brieflybot.pro:ro
-  - /root/AI-Digest-Bot/landing/certbot:/var/www/certbot:ro
-  - /etc/letsencrypt:/etc/letsencrypt:ro
 ```
 
-Перезапустите nginx:
+и один volume:
+
+```yaml
+- /root/AI-Digest-Bot/landing/www:/var/www/brieflybot.pro:ro
+```
+
+Certbot-пути `./certbot/conf` и `./certbot/www` **уже есть** — их не трогаем.
+
+Полный пример — `landing/cv_portfolio.volumes.example.txt`.
 
 ```bash
 cd ~/cv_portfolio
