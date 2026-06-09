@@ -10,6 +10,7 @@ from app.bot.keyboards import (
     CB_ACTION_MENU,
     CB_FREQ_BACK,
     CB_GMAIL_CONTINUE,
+    CB_TG_CONTINUE,
     CB_PLATFORM_GMAIL,
     CB_PLATFORM_LINKEDIN,
     CB_PLATFORM_TELEGRAM,
@@ -55,12 +56,19 @@ async def cb_platforms_menu(callback: CallbackQuery, session: AsyncSession, stat
         await show_platforms_menu(callback.message, state, session, lang, callback.from_user.id)
 
 
-@router.callback_query(F.data == CB_PLATFORM_TELEGRAM)
+@router.callback_query(F.data.in_({CB_PLATFORM_TELEGRAM, CB_TG_CONTINUE}))
 async def cb_open_telegram(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     await callback.answer()
     if callback.message:
-        await show_telegram_screen(callback.message, state, session, lang, callback.from_user.id)
+        await show_telegram_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            from_user_action=True,
+        )
 
 
 @router.callback_query(F.data.in_({CB_PLATFORM_GMAIL, CB_GMAIL_CONTINUE}))

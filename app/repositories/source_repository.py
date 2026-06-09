@@ -23,7 +23,7 @@ class SourceRepository:
         )
         return list(result.scalars().all())
 
-    async def add_source(self, user_id: int, raw_username: str) -> str | None:
+    async def add_source(self, user_id: int, raw_username: str, *, title: str | None = None) -> str | None:
         """Returns 'new', 'exists', or None if invalid."""
         try:
             username = normalize_source(raw_username)
@@ -41,13 +41,15 @@ class SourceRepository:
             if existing.is_active:
                 return "exists"
             existing.is_active = True
+            if title:
+                existing.title = title
             await self._session.flush()
             return "new"
 
         source = Source(
             user_id=user_id,
             telegram_source=username,
-            title=username,
+            title=title or username,
             is_active=True,
         )
         self._session.add(source)

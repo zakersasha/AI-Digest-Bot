@@ -14,8 +14,18 @@ from app.bot.keyboards import (
     CB_SRC_ADD,
     CB_SRC_REMOVE,
     CB_TEST_DIGEST_PREFIX,
+    CB_TG_CONNECT,
+    CB_TG_DISCONNECT,
+    CB_TG_PICK,
 )
-from app.bot.screen import _delete_screen, bind_screen, edit_by_state, edit_from_callback, edit_screen, replace_screen
+from app.bot.screen import (
+    _delete_screen,
+    bind_screen,
+    edit_by_state,
+    edit_from_callback,
+    edit_screen,
+    replace_screen,
+)
 from app.bot.states import OnboardingStates
 from app.config import get_settings
 from app.i18n import t
@@ -54,8 +64,20 @@ async def _platform_status_line(
     schedule = _schedule_line(lang, settings)
 
     if platform_id == "telegram":
-        count = await SourceRepository(session).count_active(user.id)
-        conn = t(lang, "platform_status_channels", count=str(count)) if count else t(lang, "platform_not_connected")
+        user_repo = UserRepository(session)
+        if user_repo.has_telethon(user):
+            count = await SourceRepository(session).count_active(user.id)
+            if count:
+                conn = t(lang, "platform_status_tg_linked_channels", phone=user.telegram_phone or "Telegram", count=str(count))
+            else:
+                conn = t(lang, "platform_status_tg_linked", phone=user.telegram_phone or "Telegram")
+        else:
+            count = await SourceRepository(session).count_active(user.id)
+            conn = (
+                t(lang, "platform_status_channels", count=str(count))
+                if count
+                else t(lang, "platform_not_connected")
+            )
         return f"{conn} · {schedule}"
 
     if platform_id == "gmail":
@@ -120,21 +142,35 @@ async def show_platforms_menu(
         await replace_screen(target, state, text, markup)
 
 
-def _telegram_keyboard(lang: str, sources, *, has_channels: bool) -> InlineKeyboardMarkup:
+def _telegram_keyboard(lang: str, sources, *, linked: bool, has_channels: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
+
+    if not linked:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_tg_connect"), callback_data=CB_TG_CONNECT)])
+    else:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_tg_pick_channels"), callback_data=CB_TG_PICK)])
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_add_source"), callback_data=CB_SRC_ADD)])
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_tg_disconnect"), callback_data=CB_TG_DISCONNECT)]
+        )
+
     for source in sources:
         from app.utils.links import channel_username
 
         key = channel_username(source.telegram_source)
+        label = source.telegram_source
+        if source.title and source.title != source.telegram_source:
+            label = f"{source.telegram_source} — {source.title[:24]}"
         rows.append(
-            [InlineKeyboardButton(text=f"🗑 {source.telegram_source}", callback_data=f"{CB_SRC_REMOVE}:{key}")]
+            [InlineKeyboardButton(text=f"🗑 {label}", callback_data=f"{CB_SRC_REMOVE}:{key}")]
         )
-    rows.append([InlineKeyboardButton(text=t(lang, "btn_add_source"), callback_data=CB_SRC_ADD)])
-    rows.append([InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}telegram")])
-    if has_channels:
-        rows.append(
-            [InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}telegram")]
-        )
+
+    if linked:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}telegram")])
+        if has_channels:
+            rows.append(
+                [InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}telegram")]
+            )
     rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_ACTION_MENU)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
@@ -147,30 +183,44 @@ async def show_telegram_screen(
     telegram_id: int,
     *,
     status_line: str | None = None,
+    from_user_action: bool = False,
 ) -> None:
     user = await UserRepository(session).get_by_telegram_id(telegram_id)
     if not user:
         return
+    await session.refresh(user)
 
+    user_repo = UserRepository(session)
+    linked = user_repo.has_telethon(user)
     sources = await SourceRepository(session).list_all_for_user(user.id)
     settings = await PlatformSettingsRepository(session).get(user.id, "telegram")
-    text = (
-        f"<b>{t(lang, 'platform_telegram')}</b>\n\n"
-        f"{t(lang, 'telegram_screen_hint')}\n\n"
-        f"{_format_channels_list(sources, lang)}\n\n"
-        f"<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
-    )
+    text = f"<b>{t(lang, 'platform_telegram')}</b>\n\n"
+    text += _format_telegram_status(user, lang, linked)
+    text += f"\n\n{t(lang, 'telegram_screen_hint')}\n\n"
+    text += _format_channels_list(sources, lang)
+    if linked:
+        text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
     if status_line:
         text += f"\n\n{status_line}"
 
     await state.set_state(OnboardingStates.managing_sources)
     await state.update_data(active_platform="telegram")
-    markup = _telegram_keyboard(lang, sources, has_channels=bool(sources))
+    markup = _telegram_keyboard(lang, sources, linked=linked, has_channels=bool(sources))
     data = await state.get_data()
-    if data.get("screen_chat_id") and data.get("screen_message_id"):
+    if from_user_action:
+        await _delete_screen(target.bot, state)
+        await bind_screen(state, target)
+        await edit_screen(target, state, text, markup)
+    elif data.get("screen_chat_id") and data.get("screen_message_id"):
         await edit_by_state(target.bot, state, text, markup)
     else:
         await replace_screen(target, state, text, markup)
+
+
+def _format_telegram_status(user, lang: str, linked: bool) -> str:
+    if linked:
+        return t(lang, "tg_status_linked", phone=user.telegram_phone or "Telegram")
+    return t(lang, "tg_status_not_linked")
 
 
 def _format_channels_list(sources, lang: str) -> str:
@@ -178,7 +228,10 @@ def _format_channels_list(sources, lang: str) -> str:
         return t(lang, "sources_list_empty")
     lines = [t(lang, "sources_list_header", count=len(sources))]
     for source in sources:
-        lines.append(f"• {source.telegram_source}")
+        if source.title and source.title != source.telegram_source:
+            lines.append(f"• {source.telegram_source} — {source.title}")
+        else:
+            lines.append(f"• {source.telegram_source}")
     return "\n".join(lines)
 
 

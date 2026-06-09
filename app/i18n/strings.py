@@ -20,7 +20,47 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_not_ready": "Настройте подключение и расписание",
         "platform_unavailable": "Платформа недоступна",
         "step_frequency_platform": "<b>Расписание · {platform}</b>\n\nКак часто присылать дайджест?",
-        "telegram_screen_hint": "Добавьте каналы ссылками в чат. Можно несколько сразу.",
+        "telegram_screen_hint": (
+            "1. Нажмите «Подключить Telegram» и подтвердите номер.\n"
+            "2. Введите код из Telegram (и пароль 2FA, если есть).\n"
+            "3. Выберите каналы из подписок — «Мои каналы»."
+        ),
+        "tg_status_linked": "✅ Аккаунт: <b>{phone}</b>",
+        "tg_status_not_linked": "<i>Аккаунт не подключён</i>",
+        "platform_status_tg_linked": "✅ {phone}",
+        "platform_status_tg_linked_channels": "✅ {phone} · {count} кан.",
+        "btn_tg_connect": "🔗 Подключить Telegram",
+        "btn_tg_disconnect": "🔌 Отключить Telegram",
+        "btn_tg_continue": "✅ Продолжить",
+        "btn_tg_pick_channels": "📋 Мои каналы",
+        "btn_tg_pick_done": "✅ Готово",
+        "btn_share_phone": "📱 Поделиться номером",
+        "tg_connect_phone_prompt": (
+            "<b>Подключение Telegram</b>\n\n"
+            "Нажмите кнопку ниже или отправьте номер в формате <code>+79001234567</code>.\n"
+            "Мы используем его только для чтения ваших подписок и каналов."
+        ),
+        "tg_code_prompt": "Введите код из Telegram (сообщение от Telegram, не SMS).",
+        "tg_2fa_prompt": "Введите пароль двухфакторной аутентификации Telegram.",
+        "tg_contact_invalid": "❌ Нужен ваш собственный контакт — нажмите «Поделиться номером».",
+        "tg_invalid_phone": "❌ Неверный номер. Пример: <code>+79001234567</code>",
+        "tg_invalid_code": "❌ Неверный код. Попробуйте ещё раз.",
+        "tg_2fa_invalid": "❌ Неверный пароль 2FA.",
+        "tg_code_expired": "Код устарел. Нажмите «Подключить Telegram» снова.",
+        "tg_login_expired": "Сессия входа истекла. Начните подключение заново.",
+        "tg_login_failed": "❌ Не удалось подключить Telegram. Попробуйте снова.",
+        "tg_flood_wait": "⏳ Слишком много попыток. Подождите {seconds} сек.",
+        "tg_linked": "✅ Telegram подключён: <b>{phone}</b>",
+        "tg_disconnected": "Telegram отключён.",
+        "tg_not_linked": "Сначала подключите Telegram.",
+        "tg_oauth_done_notify": (
+            "✅ <b>Telegram подключён</b>: {phone}\n\n"
+            "Нажмите «Продолжить» — выберите каналы для дайджеста."
+        ),
+        "tg_picker_hint": "Ваши подписки ({count}). Нажмите, чтобы добавить или убрать:",
+        "tg_picker_empty": "Публичных каналов в подписках не найдено. Добавьте канал вручную ссылкой.",
+        "telethon_session_expired": "❌ Сессия Telegram устарела. Подключите аккаунт заново.",
+        "telethon_not_linked": "❌ Сначала подключите Telegram.",
         "gmail_screen_hint": "Подключите Gmail для дайджеста входящих писем.",
         "btn_schedule": "⏱ Расписание",
         "btn_test_digest": "🔥 Тест дайджеста",
@@ -214,7 +254,47 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_not_ready": "Set up connection and schedule",
         "platform_unavailable": "Platform unavailable",
         "step_frequency_platform": "<b>Schedule · {platform}</b>\n\nHow often to send the digest?",
-        "telegram_screen_hint": "Add channels by pasting links in chat.",
+        "telegram_screen_hint": (
+            "1. Tap «Connect Telegram» and confirm your phone number.\n"
+            "2. Enter the code from Telegram (and 2FA password if enabled).\n"
+            "3. Pick channels from your subscriptions — «My channels»."
+        ),
+        "tg_status_linked": "✅ Account: <b>{phone}</b>",
+        "tg_status_not_linked": "<i>Account not connected</i>",
+        "platform_status_tg_linked": "✅ {phone}",
+        "platform_status_tg_linked_channels": "✅ {phone} · {count} ch.",
+        "btn_tg_connect": "🔗 Connect Telegram",
+        "btn_tg_disconnect": "🔌 Disconnect Telegram",
+        "btn_tg_continue": "✅ Continue",
+        "btn_tg_pick_channels": "📋 My channels",
+        "btn_tg_pick_done": "✅ Done",
+        "btn_share_phone": "📱 Share phone number",
+        "tg_connect_phone_prompt": (
+            "<b>Connect Telegram</b>\n\n"
+            "Tap the button below or send your number like <code>+15551234567</code>.\n"
+            "We only use it to read your subscriptions and channels."
+        ),
+        "tg_code_prompt": "Enter the code from Telegram (in-app message, not SMS).",
+        "tg_2fa_prompt": "Enter your Telegram two-step verification password.",
+        "tg_contact_invalid": "❌ Share your own contact — tap «Share phone number».",
+        "tg_invalid_phone": "❌ Invalid number. Example: <code>+15551234567</code>",
+        "tg_invalid_code": "❌ Invalid code. Try again.",
+        "tg_2fa_invalid": "❌ Invalid 2FA password.",
+        "tg_code_expired": "Code expired. Tap «Connect Telegram» again.",
+        "tg_login_expired": "Login session expired. Start over.",
+        "tg_login_failed": "❌ Failed to connect Telegram. Try again.",
+        "tg_flood_wait": "⏳ Too many attempts. Wait {seconds} sec.",
+        "tg_linked": "✅ Telegram connected: <b>{phone}</b>",
+        "tg_disconnected": "Telegram disconnected.",
+        "tg_not_linked": "Connect Telegram first.",
+        "tg_oauth_done_notify": (
+            "✅ <b>Telegram connected</b>: {phone}\n\n"
+            "Tap «Continue» to pick channels for your digest."
+        ),
+        "tg_picker_hint": "Your subscriptions ({count}). Tap to add or remove:",
+        "tg_picker_empty": "No public channels in subscriptions. Add a channel manually by link.",
+        "telethon_session_expired": "❌ Telegram session expired. Connect your account again.",
+        "telethon_not_linked": "❌ Connect Telegram first.",
         "gmail_screen_hint": "Connect Gmail for inbox digest.",
         "btn_schedule": "⏱ Schedule",
         "btn_test_digest": "🔥 Test digest",

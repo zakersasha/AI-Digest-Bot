@@ -18,7 +18,7 @@ from app.services.frequency import parse_frequency
 from app.services.gmail_service import GmailService
 from app.services.message_selection import interleave_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
-from app.services.telethon_client import shared_telethon_client
+from app.services.telethon_client import telethon_for_digest
 from app.utils.digest_links import format_digest_links, is_no_new_content_response
 from app.utils.links import channel_username
 from app.utils.logging import get_logger
@@ -81,7 +81,7 @@ class DigestService:
         if not sources:
             raise ValueError(t(language, "no_channels_selected"))
 
-        if not self._settings.telegram_session_string:
+        if not self._settings.telegram_session_string and not self._user_repo.has_telethon(user):
             raise ValueError(t(language, "reader_not_configured"))
 
         delta = parse_frequency(frequency)
@@ -89,7 +89,7 @@ class DigestService:
         label = frequency_label(language, frequency)
 
         all_messages: list[ContentMessage] = []
-        async with shared_telethon_client(self._settings) as telethon:
+        async with telethon_for_digest(user, self._settings) as telethon:
             for source in sources:
                 try:
                     messages = await telethon.fetch_messages(source.telegram_source, since)
