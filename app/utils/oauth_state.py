@@ -13,7 +13,7 @@ def _b64_encode(data: bytes) -> str:
 
 def _b64_decode(data: str) -> bytes:
     padded = data + "=" * (-len(data) % 4)
-    return base64.urlsafe_decode(padded.encode())
+    return base64.urlsafe_b64decode(padded.encode())
 
 
 def create_signed_oauth_state(telegram_id: int, secret: str, *, ttl_seconds: int = 900) -> str:
