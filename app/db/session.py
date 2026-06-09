@@ -31,6 +31,10 @@ _USER_MIGRATIONS = (
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_tokens_encrypted TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_email VARCHAR(255)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS gmail_linked_at TIMESTAMPTZ",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_tokens_encrypted TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_name VARCHAR(255)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_member_id VARCHAR(64)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_linked_at TIMESTAMPTZ",
 )
 
 _PLATFORM_SETTINGS_DDL = """

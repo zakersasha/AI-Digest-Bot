@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.platform_settings import PlatformSettings
 from app.models.user import User
+from app.repositories.linkedin_profile_repository import LinkedInProfileRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 
@@ -11,6 +12,8 @@ async def is_platform_connected(session: AsyncSession, user: User, platform: str
         return await SourceRepository(session).count_active(user.id) > 0
     if platform == "gmail":
         return UserRepository(session).has_gmail(user)
+    if platform == "linkedin":
+        return await LinkedInProfileRepository(session).count_active(user.id) > 0
     return False
 
 

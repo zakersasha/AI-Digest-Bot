@@ -11,11 +11,13 @@ from app.i18n import digest_title, frequency_label, t
 from app.models.user import User
 from app.repositories.digest_repository import DigestRepository
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
+from app.repositories.linkedin_profile_repository import LinkedInProfileRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.content_message import ContentMessage
 from app.services.frequency import parse_frequency
 from app.services.gmail_service import GmailService
+from app.services.linkedin_service import LinkedInService
 from app.services.message_selection import interleave_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import telethon_for_digest
@@ -41,6 +43,8 @@ class DigestService:
         self._user_repo = UserRepository(session)
         self._platform_repo = PlatformSettingsRepository(session)
         self._gmail = GmailService(settings)
+        self._linkedin = LinkedInService(settings)
+        self._linkedin_repo = LinkedInProfileRepository(session)
 
     async def generate_for_platform(
         self,
@@ -57,6 +61,8 @@ class DigestService:
             return await self._generate_telegram_digest(user, frequency, language)
         if platform == "gmail":
             return await self._generate_gmail_digest(user, frequency, language)
+        if platform == "linkedin":
+            return await self._generate_linkedin_digest(user, frequency, language)
         raise ValueError(t(language, "platform_unavailable"))
 
     async def generate_scheduled(
@@ -152,6 +158,52 @@ class DigestService:
             messages,
         )
 
+    async def _generate_linkedin_digest(self, user: User, frequency: str, language: str) -> str:
+        profiles = await self._linkedin_repo.list_active_for_user(user.id)
+        if not profiles:
+            raise ValueError(t(language, "li_no_profiles"))
+
+        if not self._user_repo.has_linkedin(user):
+            raise ValueError(t(language, "li_not_linked"))
+
+        if not self._linkedin.is_configured():
+            raise ValueError(t(language, "li_not_configured"))
+
+        delta = parse_frequency(frequency)
+        since = datetime.now(tz=UTC) - delta
+        label = frequency_label(language, frequency)
+
+        all_messages: list[ContentMessage] = []
+        try:
+            for profile in profiles:
+                try:
+                    posts = await self._linkedin.fetch_posts(
+                        user.linkedin_tokens_encrypted,
+                        profile,
+                        since,
+                    )
+                    all_messages.extend(posts)
+                except ValueError as exc:
+                    logger.warning(
+                        "linkedin_profile_fetch_failed",
+                        slug=profile.profile_slug,
+                        error=str(exc),
+                    )
+        except httpx.HTTPError as exc:
+            logger.error("linkedin_fetch_failed", user_id=user.id, error=str(exc))
+            raise RuntimeError(t(language, "li_fetch_failed")) from exc
+
+        if not all_messages:
+            raise ValueError(t(language, "no_linkedin_posts", label=label))
+
+        return await self._build_digest(
+            user.id,
+            "linkedin",
+            frequency,
+            language,
+            all_messages,
+        )
+
     async def _build_digest(
         self,
         user_id: int,
@@ -176,6 +228,9 @@ class DigestService:
         for msg in selected:
             if msg.source.startswith("email:"):
                 source_label = msg.source.removeprefix("email:")
+                items.append((source_label, msg.post_url, msg.text))
+            elif msg.source.startswith("linkedin:"):
+                source_label = msg.source.removeprefix("linkedin:")
                 items.append((source_label, msg.post_url, msg.text))
             else:
                 username = channel_username(msg.source)

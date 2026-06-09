@@ -10,6 +10,7 @@ from app.services.gmail_link import link_gmail_account
 from app.utils.logging import get_logger
 from app.config import get_settings
 from app.utils.oauth_state import create_signed_oauth_state, verify_signed_oauth_state
+from app.web.linkedin_oauth import linkedin_oauth_callback
 
 logger = get_logger(__name__)
 
@@ -110,12 +111,20 @@ async def gmail_oauth_callback(request: web.Request) -> web.Response:
     )
 
 
-def create_oauth_app(settings, *, bot: Bot | None = None, bot_username: str | None = None) -> web.Application:
+def create_oauth_app(
+    settings,
+    *,
+    bot: Bot | None = None,
+    bot_username: str | None = None,
+    storage=None,
+) -> web.Application:
     app = web.Application()
     app["settings"] = settings
     app["bot"] = bot
     app["bot_username"] = bot_username
+    app["storage"] = storage
     app.router.add_get("/oauth/gmail/callback", gmail_oauth_callback)
+    app.router.add_get("/oauth/linkedin/callback", linkedin_oauth_callback)
     return app
 
 
@@ -124,9 +133,10 @@ async def start_oauth_server(
     *,
     bot: Bot | None = None,
     bot_username: str | None = None,
+    storage=None,
     on_startup: Callable[[], Awaitable[None]] | None = None,
 ) -> web.AppRunner:
-    app = create_oauth_app(settings, bot=bot, bot_username=bot_username)
+    app = create_oauth_app(settings, bot=bot, bot_username=bot_username, storage=storage)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, settings.gmail_oauth_host, settings.gmail_oauth_port)

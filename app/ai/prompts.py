@@ -44,6 +44,18 @@ GMAIL_DIGEST_PROMPT = (
     "{messages}"
 )
 
+LINKEDIN_DIGEST_PROMPT = (
+    "Create a digest from LinkedIn profile posts.\n\n"
+    "Write in {language_name} only.\n"
+    f"{_SKIP_RULES.strip()}\n"
+    f"{_SELECTION_RULES.strip()}\n"
+    f"{_LINK_RULES.strip()}\n\n"
+    "Example item:\n"
+    "1. Company raised Series B funding. [{link_label}](https://www.linkedin.com/feed/update/urn:li:activity:123)\n\n"
+    "Posts:\n"
+    "{messages}"
+)
+
 COMBINED_DIGEST_PROMPT = (
     "Create a digest from Telegram posts and Gmail emails.\n\n"
     "Write in {language_name} only.\n"

@@ -9,9 +9,14 @@ from app.bot.keyboards import (
     CB_GMAIL_DISCONNECT,
     CB_GMAIL_PASTE,
     CB_PLATFORM_GMAIL,
+    CB_LI_ADD_LINKS,
+    CB_LI_DISCONNECT,
+    CB_LI_PICK,
+    CB_LI_PROFILES,
     CB_PLATFORM_LINKEDIN,
     CB_PLATFORM_TELEGRAM,
     CB_SCHEDULE_PREFIX,
+    CB_LI_REMOVE_PREFIX,
     CB_SRC_ADD,
     CB_SRC_REMOVE,
     CB_TEST_DIGEST_PREFIX,
@@ -34,12 +39,15 @@ from app.bot.screen import (
 )
 from app.bot.states import OnboardingStates
 from app.config import get_settings
+from app.db.session import async_session_factory
 from app.i18n import t
 from app.platforms.registry import PLATFORMS, available_platforms, get_platform
+from app.repositories.linkedin_profile_repository import LinkedInProfileRepository
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.gmail_service import GmailService
+from app.services.linkedin_service import LinkedInService
 from app.services.platform_readiness import is_platform_scheduled
 from app.web.gmail_oauth import create_oauth_state
 
@@ -93,6 +101,27 @@ async def _platform_status_line(
             conn = t(lang, "platform_not_connected")
         return f"{conn} · {schedule}"
 
+    if platform_id == "linkedin":
+        user_repo = UserRepository(session)
+        count = await LinkedInProfileRepository(session).count_active(user.id)
+        if user_repo.has_linkedin(user):
+            if count:
+                conn = t(
+                    lang,
+                    "platform_status_li_linked_profiles",
+                    name=user.linkedin_name or "LinkedIn",
+                    count=str(count),
+                )
+            else:
+                conn = t(lang, "platform_status_li_linked", name=user.linkedin_name or "LinkedIn")
+        else:
+            conn = (
+                t(lang, "platform_status_li_profiles", count=str(count))
+                if count
+                else t(lang, "platform_not_connected")
+            )
+        return f"{conn} · {schedule}"
+
     return schedule
 
 
@@ -117,6 +146,7 @@ async def show_platforms_menu(
             cb = {
                 "telegram": CB_PLATFORM_TELEGRAM,
                 "gmail": CB_PLATFORM_GMAIL,
+                "linkedin": CB_PLATFORM_LINKEDIN,
             }.get(pdef.id, f"plat:{pdef.id}")
             rows.append(
                 [InlineKeyboardButton(text=f"{pdef.emoji} {t(lang, pdef.label_key)}", callback_data=cb)]
@@ -432,8 +462,221 @@ def _format_gmail_status(user, lang: str) -> str:
     return t(lang, "gmail_status_not_linked")
 
 
-async def show_linkedin_screen(callback: CallbackQuery, state: FSMContext, lang: str) -> None:
-    await callback.answer(t(lang, "platform_coming_soon"), show_alert=True)
+def _linkedin_keyboard(lang: str, telegram_id: int, user, linked: bool, profile_count: int) -> InlineKeyboardMarkup:
+    settings = get_settings()
+    li = LinkedInService(settings)
+    rows: list[list[InlineKeyboardButton]] = []
+
+    if not linked:
+        if li.is_configured():
+            auth_url = li.build_auth_url(create_oauth_state(telegram_id))
+            rows.append(
+                [
+                    InlineKeyboardButton(text=t(lang, "btn_li_connect"), url=auth_url),
+                    InlineKeyboardButton(text=t(lang, "btn_li_add_links"), callback_data=CB_LI_ADD_LINKS),
+                ]
+            )
+        else:
+            rows.append(
+                [InlineKeyboardButton(text=t(lang, "btn_li_add_links"), callback_data=CB_LI_ADD_LINKS)]
+            )
+    elif linked:
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_li_disconnect"), callback_data=CB_LI_DISCONNECT)]
+        )
+
+    has_profiles = profile_count > 0
+    if has_profiles or linked:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "btn_li_profiles", count=str(profile_count)),
+                    callback_data=CB_LI_PROFILES,
+                )
+            ]
+        )
+
+    if has_profiles:
+        rows.append(
+            [
+                InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}linkedin"),
+                InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}linkedin"),
+            ]
+        )
+
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_ACTION_MENU)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _linkedin_profiles_keyboard(lang: str, profiles, *, linked: bool) -> InlineKeyboardMarkup:
+    rows: list[list[InlineKeyboardButton]] = []
+    if linked:
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_li_pick_profiles"), callback_data=CB_LI_PICK)])
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_li_add_links"), callback_data=CB_LI_ADD_LINKS)])
+    for profile in profiles:
+        label = profile.title or profile.profile_slug
+        if len(label) > 28:
+            label = label[:28]
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=f"🗑 {label}",
+                    callback_data=f"{CB_LI_REMOVE_PREFIX}{profile.profile_slug}",
+                )
+            ]
+        )
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_PLATFORM_LINKEDIN)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _format_linkedin_status(user, lang: str, linked: bool, *, profile_count: int = 0) -> str:
+    if linked:
+        return t(lang, "li_status_linked", name=user.linkedin_name or "LinkedIn")
+    if profile_count > 0:
+        return t(lang, "li_status_manual")
+    return t(lang, "li_status_not_linked")
+
+
+def _format_profiles_list(profiles, lang: str) -> str:
+    if not profiles:
+        return t(lang, "li_profiles_list_empty")
+    lines = [t(lang, "li_profiles_list_header", count=len(profiles))]
+    for profile in profiles:
+        title = profile.title or profile.profile_slug
+        lines.append(f"• {title}")
+    return "\n".join(lines)
+
+
+async def push_linkedin_screen(
+    bot: Bot,
+    storage,
+    telegram_id: int,
+    lang: str,
+    *,
+    status_line: str | None = None,
+) -> None:
+    from aiogram.fsm.context import FSMContext
+    from aiogram.fsm.storage.base import StorageKey
+
+    state = FSMContext(
+        storage=storage,
+        key=StorageKey(bot_id=bot.id, chat_id=telegram_id, user_id=telegram_id),
+    )
+    chat_id = await screen_chat_id(state)
+    if not chat_id:
+        return
+
+    async with async_session_factory() as session:
+        user = await UserRepository(session).get_by_telegram_id(telegram_id)
+        if not user:
+            return
+        await session.refresh(user)
+        user_repo = UserRepository(session)
+        linked = user_repo.has_linkedin(user)
+        profiles = await LinkedInProfileRepository(session).list_all_for_user(user.id)
+        settings = await PlatformSettingsRepository(session).get(user.id, "linkedin")
+        text = f"<b>{t(lang, 'platform_linkedin')}</b>\n\n"
+        text += _format_linkedin_status(user, lang, linked, profile_count=len(profiles))
+        if not linked and not profiles:
+            text += f"\n\n{t(lang, 'li_screen_hint')}"
+        elif profiles:
+            text += f"\n\n{t(lang, 'li_profiles_summary', count=str(len(profiles)))}"
+        else:
+            text += f"\n\n{t(lang, 'li_no_profiles_yet')}"
+        if profiles or linked:
+            text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
+        if status_line:
+            text += f"\n\n{status_line}"
+        await state.set_state(OnboardingStates.connecting_linkedin)
+        await state.update_data(active_platform="linkedin", li_ui="main")
+        markup = _linkedin_keyboard(lang, telegram_id, user, linked, len(profiles))
+        await replace_screen_at(bot, state, chat_id, text, markup)
+
+
+async def show_linkedin_screen(
+    target: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    lang: str,
+    telegram_id: int,
+    *,
+    status_line: str | None = None,
+    from_user_action: bool = False,
+) -> None:
+    user = await UserRepository(session).get_by_telegram_id(telegram_id)
+    if not user:
+        return
+    await session.refresh(user)
+
+    user_repo = UserRepository(session)
+    linked = user_repo.has_linkedin(user)
+    profiles = await LinkedInProfileRepository(session).list_all_for_user(user.id)
+    settings = await PlatformSettingsRepository(session).get(user.id, "linkedin")
+    text = f"<b>{t(lang, 'platform_linkedin')}</b>\n\n"
+    text += _format_linkedin_status(user, lang, linked, profile_count=len(profiles))
+    if not linked and not profiles:
+        text += f"\n\n{t(lang, 'li_screen_hint')}"
+    elif profiles:
+        text += f"\n\n{t(lang, 'li_profiles_summary', count=str(len(profiles)))}"
+    else:
+        text += f"\n\n{t(lang, 'li_no_profiles_yet')}"
+    if profiles or linked:
+        text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    await state.set_state(OnboardingStates.connecting_linkedin)
+    await state.update_data(active_platform="linkedin", li_ui="main")
+    markup = _linkedin_keyboard(lang, telegram_id, user, linked, len(profiles))
+    data = await state.get_data()
+    if from_user_action:
+        await _delete_screen(target.bot, state)
+        await bind_screen(state, target)
+        await edit_screen(target, state, text, markup)
+    elif data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(target.bot, state, text, markup)
+    else:
+        await replace_screen(target, state, text, markup)
+
+
+async def show_linkedin_profiles_screen(
+    target: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    lang: str,
+    telegram_id: int,
+    *,
+    status_line: str | None = None,
+    from_user_action: bool = False,
+) -> None:
+    user = await UserRepository(session).get_by_telegram_id(telegram_id)
+    if not user:
+        return
+
+    user_repo = UserRepository(session)
+    linked = user_repo.has_linkedin(user)
+    profiles = await LinkedInProfileRepository(session).list_all_for_user(user.id)
+    text = f"<b>{t(lang, 'li_profiles_screen_title')}</b>\n\n"
+    if linked:
+        text += f"{t(lang, 'li_profiles_screen_hint_linked')}\n\n"
+    else:
+        text += f"{t(lang, 'li_profiles_screen_hint_manual')}\n\n"
+    text += _format_profiles_list(profiles, lang)
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    await state.set_state(OnboardingStates.connecting_linkedin)
+    await state.update_data(active_platform="linkedin", li_ui="profiles")
+    markup = _linkedin_profiles_keyboard(lang, profiles, linked=linked)
+    data = await state.get_data()
+    if from_user_action:
+        await _delete_screen(target.bot, state)
+        await bind_screen(state, target)
+        await edit_screen(target, state, text, markup)
+    elif data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(target.bot, state, text, markup)
+    else:
+        await replace_screen(target, state, text, markup)
 
 
 async def show_schedule_frequency(

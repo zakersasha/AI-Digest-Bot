@@ -3,7 +3,12 @@ from openai import APIConnectionError, AsyncOpenAI
 from app.ai.base import AIProvider
 from app.ai.openai_urls import resolve_openai_base_url
 from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
-from app.ai.prompts import COMBINED_DIGEST_PROMPT, GMAIL_DIGEST_PROMPT, TELEGRAM_DIGEST_PROMPT
+from app.ai.prompts import (
+    COMBINED_DIGEST_PROMPT,
+    GMAIL_DIGEST_PROMPT,
+    LINKEDIN_DIGEST_PROMPT,
+    TELEGRAM_DIGEST_PROMPT,
+)
 from app.config import get_settings
 from app.i18n import language_name, t
 from app.utils.http_proxy import create_httpx_client, proxy_host
@@ -106,6 +111,7 @@ class OpenAIProvider(AIProvider):
         joined = "\n\n".join(message_blocks)
         templates = {
             "gmail": GMAIL_DIGEST_PROMPT,
+            "linkedin": LINKEDIN_DIGEST_PROMPT,
             "telegram": TELEGRAM_DIGEST_PROMPT,
             "combined": COMBINED_DIGEST_PROMPT,
         }

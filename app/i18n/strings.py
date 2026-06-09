@@ -253,7 +253,52 @@ STRINGS: dict[str, dict[str, str]] = {
             "⏱ Расписание: <b>{frequency}</b> в <b>{time}</b>\n\n"
             "Первый дайджест придёт по расписанию. Можно получить сейчас — кнопка ниже."
         ),
-        "pick_source_first": "❌ Настройте источник: каналы или Gmail.",
+        "li_screen_hint": (
+            "Два способа:\n"
+            "• <b>Ссылки</b> — вставьте URL профилей вручную\n"
+            "• <b>Подключить LinkedIn</b> — выбрать из подписок на компании"
+        ),
+        "li_status_linked": "✅ Аккаунт: <b>{name}</b>",
+        "li_status_manual": "📋 Профили добавлены вручную",
+        "li_status_not_linked": "<i>Аккаунт не подключён</i>",
+        "platform_status_li_linked": "✅ {name}",
+        "platform_status_li_linked_profiles": "✅ {name} · {count} проф.",
+        "platform_status_li_profiles": "📋 {count} проф.",
+        "btn_li_connect": "🔗 Подключить LinkedIn",
+        "btn_li_add_links": "🔗 Ссылки",
+        "btn_li_disconnect": "🔌 Отключить LinkedIn",
+        "btn_li_profiles": "📋 Профили ({count})",
+        "btn_li_pick_profiles": "📋 Мои подписки",
+        "btn_li_pick_done": "✅ Готово",
+        "li_profiles_screen_title": "📋 Профили",
+        "li_profiles_screen_hint_linked": "Выберите из подписок или добавьте ссылкой.",
+        "li_profiles_screen_hint_manual": "Добавьте профили ссылкой. OAuth — чтобы выбрать из подписок.",
+        "li_profiles_summary": "Профилей в дайджесте: <b>{count}</b>",
+        "li_no_profiles_yet": "Профили не выбраны — откройте «Профили».",
+        "li_profiles_list_empty": "Профили не добавлены.",
+        "li_profiles_list_header": "В дайджесте ({count}):",
+        "li_add_prompt": (
+            "Отправьте ссылки на профили LinkedIn — по одной на строку.\n\n"
+            "Примеры:\n"
+            "<code>https://www.linkedin.com/in/username</code>\n"
+            "<code>https://www.linkedin.com/company/acme</code>"
+        ),
+        "li_profiles_added": "✅ Добавлено профилей: {count}",
+        "li_profiles_already": "ℹ️ Эти профили уже в списке.",
+        "li_parse_failed": "❌ Не нашёл ссылок LinkedIn. Пример: linkedin.com/in/username",
+        "li_profile_removed": "Профиль удалён.",
+        "li_picker_hint": "Ваши подписки на компании ({count}). Нажмите, чтобы добавить или убрать:",
+        "li_picker_empty": "Подписок на компании не найдено. Добавьте профиль вручную ссылкой.",
+        "li_not_linked": "❌ Сначала подключите LinkedIn.",
+        "li_disconnected": "LinkedIn отключён.",
+        "li_no_profiles": "❌ Выберите хотя бы один профиль.",
+        "li_not_configured": "❌ LinkedIn OAuth не настроен (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET).",
+        "li_fetch_failed": "❌ Не удалось загрузить посты LinkedIn.",
+        "no_linkedin_posts": "ℹ️ За период «{label}» постов нет.",
+        "digest_header_linkedin": "🔥 *Твой LinkedIn-дайджест {period}*",
+        "digest_progress_fetch_linkedin": "📡 Загружаю LinkedIn <b>{label}</b>{dots}",
+        "digest_progress_read_linkedin": "📥 Читаю посты <b>{label}</b>{dots}",
+        "pick_source_first": "❌ Настройте источник: каналы, Gmail или LinkedIn.",
     },
     "en": {
         "welcome": (
@@ -509,6 +554,51 @@ STRINGS: dict[str, dict[str, str]] = {
             "⏱ Schedule: <b>{frequency}</b> at <b>{time}</b>\n\n"
             "Your first digest will arrive on schedule. Or get one now below."
         ),
-        "pick_source_first": "❌ Set up a source first: channels or Gmail.",
+        "li_screen_hint": (
+            "Two ways:\n"
+            "• <b>Links</b> — paste profile URLs manually\n"
+            "• <b>Connect LinkedIn</b> — pick from company follows"
+        ),
+        "li_status_linked": "✅ Account: <b>{name}</b>",
+        "li_status_manual": "📋 Profiles added manually",
+        "li_status_not_linked": "<i>Account not connected</i>",
+        "platform_status_li_linked": "✅ {name}",
+        "platform_status_li_linked_profiles": "✅ {name} · {count} profiles",
+        "platform_status_li_profiles": "📋 {count} profiles",
+        "btn_li_connect": "🔗 Connect LinkedIn",
+        "btn_li_add_links": "🔗 Links",
+        "btn_li_disconnect": "🔌 Disconnect LinkedIn",
+        "btn_li_profiles": "📋 Profiles ({count})",
+        "btn_li_pick_profiles": "📋 My follows",
+        "btn_li_pick_done": "✅ Done",
+        "li_profiles_screen_title": "📋 Profiles",
+        "li_profiles_screen_hint_linked": "Pick from follows or add by link.",
+        "li_profiles_screen_hint_manual": "Add profiles by link. OAuth — to pick from follows.",
+        "li_profiles_summary": "Profiles in digest: <b>{count}</b>",
+        "li_no_profiles_yet": "No profiles selected — open «Profiles».",
+        "li_profiles_list_empty": "No profiles added.",
+        "li_profiles_list_header": "In digest ({count}):",
+        "li_add_prompt": (
+            "Send LinkedIn profile URLs — one per line.\n\n"
+            "Examples:\n"
+            "<code>https://www.linkedin.com/in/username</code>\n"
+            "<code>https://www.linkedin.com/company/acme</code>"
+        ),
+        "li_profiles_added": "✅ Profiles added: {count}",
+        "li_profiles_already": "ℹ️ These profiles are already in the list.",
+        "li_parse_failed": "❌ No LinkedIn links found. Example: linkedin.com/in/username",
+        "li_profile_removed": "Profile removed.",
+        "li_picker_hint": "Your company follows ({count}). Tap to add or remove:",
+        "li_picker_empty": "No company follows found. Add a profile manually by link.",
+        "li_not_linked": "❌ Connect LinkedIn first.",
+        "li_disconnected": "LinkedIn disconnected.",
+        "li_no_profiles": "❌ Select at least one profile.",
+        "li_not_configured": "❌ LinkedIn OAuth is not configured (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET).",
+        "li_fetch_failed": "❌ Failed to fetch LinkedIn posts.",
+        "no_linkedin_posts": "ℹ️ No posts for «{label}».",
+        "digest_header_linkedin": "🔥 *Your LinkedIn digest {period}*",
+        "digest_progress_fetch_linkedin": "📡 Loading LinkedIn <b>{label}</b>{dots}",
+        "digest_progress_read_linkedin": "📥 Reading posts <b>{label}</b>{dots}",
+        "pick_source_first": "❌ Set up a source first: channels, Gmail, or LinkedIn.",
     },
 }

@@ -148,6 +148,47 @@ class UserRepository:
     def has_gmail(self, user: User) -> bool:
         return bool(user.gmail_tokens_encrypted)
 
+    async def save_linkedin_tokens(
+        self,
+        telegram_id: int,
+        tokens: dict,
+        name: str,
+        member_id: str,
+    ) -> User | None:
+        from app.services.linkedin_service import LinkedInService
+
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.linkedin_tokens_encrypted = LinkedInService.encrypt_tokens(tokens)
+        user.linkedin_name = name
+        user.linkedin_member_id = member_id or None
+        user.linkedin_linked_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return user
+
+    async def update_linkedin_tokens(self, user_id: int, tokens: dict) -> None:
+        from app.services.linkedin_service import LinkedInService
+
+        result = await self._session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one()
+        user.linkedin_tokens_encrypted = LinkedInService.encrypt_tokens(tokens)
+        await self._session.flush()
+
+    async def clear_linkedin(self, telegram_id: int) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.linkedin_tokens_encrypted = None
+        user.linkedin_name = None
+        user.linkedin_member_id = None
+        user.linkedin_linked_at = None
+        await self._session.flush()
+        return user
+
+    def has_linkedin(self, user: User) -> bool:
+        return bool(user.linkedin_tokens_encrypted)
+
     async def clear_telethon_session(self, telegram_id: int) -> User | None:
         user = await self.get_by_telegram_id(telegram_id)
         if not user:

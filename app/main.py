@@ -107,7 +107,10 @@ async def run_bot() -> None:
     await digest_scheduler.start()
 
     oauth_runner = None
-    if settings.gmail_client_id and settings.gmail_client_secret:
+    oauth_enabled = (settings.gmail_client_id and settings.gmail_client_secret) or (
+        settings.linkedin_client_id and settings.linkedin_client_secret
+    )
+    if oauth_enabled:
         bot_username = settings.bot_username.strip().lstrip("@")
         if not bot_username:
             me = await bot.get_me()
@@ -116,19 +119,27 @@ async def run_bot() -> None:
             settings,
             bot=bot,
             bot_username=bot_username or None,
+            storage=dp.storage,
         )
-        logger.info(
-            "gmail_oauth_enabled",
-            redirect_uri=settings.gmail_redirect_uri,
-            bot_username=bot_username,
-        )
-        if settings.gmail_redirect_is_localhost():
-            logger.error(
-                "gmail_oauth_localhost_redirect",
-                hint="Set GMAIL_REDIRECT_URI=https://brieflybot.pro/oauth/gmail/callback in .env",
+        if settings.gmail_client_id and settings.gmail_client_secret:
+            logger.info(
+                "gmail_oauth_enabled",
+                redirect_uri=settings.gmail_redirect_uri,
+                bot_username=bot_username,
+            )
+            if settings.gmail_redirect_is_localhost():
+                logger.error(
+                    "gmail_oauth_localhost_redirect",
+                    hint="Set GMAIL_REDIRECT_URI=https://brieflybot.pro/oauth/gmail/callback in .env",
+                )
+        if settings.linkedin_client_id and settings.linkedin_client_secret:
+            logger.info(
+                "linkedin_oauth_enabled",
+                redirect_uri=settings.linkedin_redirect_uri,
+                bot_username=bot_username,
             )
     else:
-        logger.info("gmail_oauth_disabled")
+        logger.info("oauth_server_disabled")
 
     try:
         await dp.start_polling(bot)

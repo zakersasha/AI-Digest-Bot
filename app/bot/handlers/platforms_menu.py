@@ -94,7 +94,16 @@ async def cb_open_gmail(callback: CallbackQuery, session: AsyncSession, state: F
 @router.callback_query(F.data == CB_PLATFORM_LINKEDIN)
 async def cb_open_linkedin(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
-    await show_linkedin_screen(callback, state, lang)
+    await callback.answer()
+    if callback.message:
+        await show_linkedin_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            from_user_action=True,
+        )
 
 
 @router.callback_query(F.data.startswith(CB_SCHEDULE_PREFIX))
@@ -133,6 +142,15 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
             await show_telegram_screen(callback.message, state, session, lang, callback.from_user.id)
         elif platform == "gmail":
             await show_gmail_screen(
+                callback.message,
+                state,
+                session,
+                lang,
+                callback.from_user.id,
+                from_user_action=True,
+            )
+        elif platform == "linkedin":
+            await show_linkedin_screen(
                 callback.message,
                 state,
                 session,
@@ -232,6 +250,16 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
         )
     elif platform == "gmail":
         await show_gmail_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            status_line=t(lang, "schedule_saved"),
+            from_user_action=True,
+        )
+    elif platform == "linkedin":
+        await show_linkedin_screen(
             callback.message,
             state,
             session,
