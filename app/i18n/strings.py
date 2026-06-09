@@ -46,7 +46,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "tg_invalid_phone": "❌ Неверный номер. Пример: <code>+79001234567</code>",
         "tg_invalid_code": "❌ Неверный код. Попробуйте ещё раз.",
         "tg_2fa_invalid": "❌ Неверный пароль 2FA.",
-        "tg_code_expired": "Код устарел. Нажмите «Подключить Telegram» снова.",
+        "tg_code_expired": (
+            "Код устарел или был запрошен повторно. "
+            "Нажмите «Подключить Telegram» и запросите новый код (старый уже не подойдёт)."
+        ),
+        "tg_code_retry": "❌ Неверный код. Проверьте цифры в сообщении от Telegram и попробуйте ещё раз.",
         "tg_login_expired": "Сессия входа истекла. Начните подключение заново.",
         "tg_login_failed": "❌ Не удалось подключить Telegram. Попробуйте снова.",
         "tg_flood_wait": "⏳ Слишком много попыток. Подождите {seconds} сек.",
@@ -280,7 +284,11 @@ STRINGS: dict[str, dict[str, str]] = {
         "tg_invalid_phone": "❌ Invalid number. Example: <code>+15551234567</code>",
         "tg_invalid_code": "❌ Invalid code. Try again.",
         "tg_2fa_invalid": "❌ Invalid 2FA password.",
-        "tg_code_expired": "Code expired. Tap «Connect Telegram» again.",
+        "tg_code_expired": (
+            "Code expired or was replaced by a new request. "
+            "Tap «Connect Telegram» and request a fresh code."
+        ),
+        "tg_code_retry": "❌ Wrong code. Check the digits in Telegram's message and try again.",
         "tg_login_expired": "Login session expired. Start over.",
         "tg_login_failed": "❌ Failed to connect Telegram. Try again.",
         "tg_flood_wait": "⏳ Too many attempts. Wait {seconds} sec.",

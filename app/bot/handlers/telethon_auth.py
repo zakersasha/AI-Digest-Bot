@@ -33,6 +33,7 @@ from app.services.telethon_link import (
 router = Router(name="telethon_auth")
 
 _CODE_RE = re.compile(r"^\d{4,8}$")
+_PHONE_IN_PROGRESS: set[int] = set()
 
 
 def _phone_keyboard(lang: str) -> ReplyKeyboardMarkup:
@@ -164,11 +165,16 @@ async def msg_telegram_phone_text(
 
 async def _handle_phone(message: Message, state: FSMContext, session: AsyncSession, raw_phone: str) -> None:
     lang = await resolve_lang(session, message.from_user.id)
+    user_id = message.from_user.id
+    if user_id in _PHONE_IN_PROGRESS:
+        return
+
+    _PHONE_IN_PROGRESS.add(user_id)
     settings = get_settings()
 
     try:
         phone = normalize_phone(raw_phone)
-        pending = await start_phone_login(phone, settings)
+        pending = await start_phone_login(phone, settings, telegram_id=user_id)
     except ValueError as exc:
         key = str(exc)
         if key.startswith("flood_wait:"):
@@ -177,6 +183,8 @@ async def _handle_phone(message: Message, state: FSMContext, session: AsyncSessi
             return
         await message.answer(t(lang, "tg_invalid_phone"), reply_markup=ReplyKeyboardRemove())
         return
+    finally:
+        _PHONE_IN_PROGRESS.discard(user_id)
 
     await state.update_data(
         tg_login_phone=pending.phone,
@@ -208,7 +216,12 @@ async def msg_telegram_code(
 
     settings = get_settings()
     try:
-        session_string = await finish_phone_login(pending, code, settings)
+        session_string = await finish_phone_login(
+            pending,
+            code,
+            settings,
+            telegram_id=message.from_user.id,
+        )
     except PasswordRequired as exc:
         await state.update_data(tg_login_session=exc.partial_session)
         await state.set_state(OnboardingStates.waiting_telegram_2fa)
@@ -217,9 +230,14 @@ async def msg_telegram_code(
     except ValueError as exc:
         key = str(exc)
         if key == "invalid_code":
-            await message.answer(t(lang, "tg_invalid_code"))
+            await message.answer(t(lang, "tg_code_retry"))
             return
         if key == "code_expired":
+            await state.update_data(
+                tg_login_phone=None,
+                tg_login_session=None,
+                tg_login_hash=None,
+            )
             await state.set_state(OnboardingStates.waiting_telegram_phone)
             await message.answer(t(lang, "tg_code_expired"))
             return
@@ -254,7 +272,12 @@ async def msg_telegram_2fa(
 
     settings = get_settings()
     try:
-        session_string = await finish_2fa_login(partial, message.text or "", settings)
+        session_string = await finish_2fa_login(
+            partial,
+            message.text or "",
+            settings,
+            telegram_id=message.from_user.id,
+        )
     except ValueError:
         await message.answer(t(lang, "tg_2fa_invalid"))
         return
