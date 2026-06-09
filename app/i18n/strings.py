@@ -155,7 +155,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "gmail_oauth_done_notify": (
             "✅ <b>Gmail подключён</b>: {email}\n\n"
-            "Откройте 📧 Gmail в боте и настройте расписание."
+            "Нажмите «Продолжить» — настройте расписание дайджеста."
         ),
         "gmail_paste_prompt": (
             "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Google.\n\n"
@@ -349,7 +349,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "gmail_oauth_done_notify": (
             "✅ <b>Gmail connected</b>: {email}\n\n"
-            "Open 📧 Gmail in the bot and set your schedule."
+            "Tap Continue to set your digest schedule."
         ),
         "gmail_paste_prompt": (
             "Send the <b>full URL</b> from your browser address bar after Google authorization.\n\n"

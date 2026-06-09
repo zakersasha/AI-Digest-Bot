@@ -108,12 +108,24 @@ async def run_bot() -> None:
 
     oauth_runner = None
     if settings.gmail_client_id and settings.gmail_client_secret:
-        oauth_runner = await start_oauth_server(settings, bot=bot)
-        logger.info("gmail_oauth_enabled", redirect_uri=settings.gmail_redirect_uri)
+        bot_username = settings.bot_username.strip().lstrip("@")
+        if not bot_username:
+            me = await bot.get_me()
+            bot_username = me.username or ""
+        oauth_runner = await start_oauth_server(
+            settings,
+            bot=bot,
+            bot_username=bot_username or None,
+        )
+        logger.info(
+            "gmail_oauth_enabled",
+            redirect_uri=settings.gmail_redirect_uri,
+            bot_username=bot_username,
+        )
         if settings.gmail_redirect_is_localhost():
-            logger.warning(
+            logger.error(
                 "gmail_oauth_localhost_redirect",
-                hint="Set GMAIL_REDIRECT_URI to your server's public URL for automatic OAuth",
+                hint="Set GMAIL_REDIRECT_URI=https://brieflybot.pro/oauth/gmail/callback in .env",
             )
     else:
         logger.info("gmail_oauth_disabled")

@@ -46,9 +46,10 @@ class Settings(BaseSettings):
     gmail_client_id: str = Field(default="", alias="GMAIL_CLIENT_ID")
     gmail_client_secret: str = Field(default="", alias="GMAIL_CLIENT_SECRET")
     gmail_redirect_uri: str = Field(
-        default="http://localhost:8080/oauth/gmail/callback",
+        default="https://brieflybot.pro/oauth/gmail/callback",
         alias="GMAIL_REDIRECT_URI",
     )
+    bot_username: str = Field(default="", alias="BOT_USERNAME")
     gmail_oauth_host: str = Field(default="0.0.0.0", alias="GMAIL_OAUTH_HOST")
     gmail_oauth_port: int = Field(default=8080, alias="GMAIL_OAUTH_PORT")
     gmail_max_messages: int = Field(default=50, alias="GMAIL_MAX_MESSAGES")

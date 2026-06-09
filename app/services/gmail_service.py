@@ -36,7 +36,7 @@ class GmailService:
             "response_type": "code",
             "scope": GMAIL_SCOPES,
             "access_type": "offline",
-            "prompt": "consent",
+            "include_granted_scopes": "true",
             "state": state,
         }
         return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"

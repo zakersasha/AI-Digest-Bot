@@ -197,10 +197,6 @@ def _gmail_keyboard(lang: str, telegram_id: int, user, linked: bool) -> InlineKe
                     InlineKeyboardButton(text=t(lang, "btn_gmail_check"), callback_data=CB_GMAIL_CHECK),
                 ]
             )
-        else:
-            rows.append(
-                [InlineKeyboardButton(text=t(lang, "btn_gmail_check"), callback_data=CB_GMAIL_CHECK)]
-            )
     elif linked:
         rows.append(
             [InlineKeyboardButton(text=t(lang, "btn_gmail_disconnect"), callback_data=CB_GMAIL_DISCONNECT)]
