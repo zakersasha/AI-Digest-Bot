@@ -21,22 +21,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_unavailable": "Платформа недоступна",
         "step_frequency_platform": "<b>Расписание · {platform}</b>\n\nКак часто присылать дайджест?",
         "telegram_screen_hint": (
-            "1. Нажмите «Подключить Telegram» — появится QR-код.\n"
-            "2. В приложении Telegram: Настройки → Устройства → Подключить устройство → сканируйте QR.\n"
-            "3. Выберите каналы — «Мои каналы»."
+            "<b>Два способа:</b>\n"
+            "• <b>QR</b> — подключить аккаунт и выбрать каналы из подписок\n"
+            "• <b>Ссылки</b> — вставить @channel или t.me/… вручную"
         ),
+        "btn_tg_add_links": "🔗 Ссылки",
+        "tg_status_manual": "📋 Каналы добавлены вручную",
+        "tg_channels_screen_hint_linked": "Выберите из подписок или добавьте ссылкой.",
+        "tg_channels_screen_hint_manual": "Добавьте каналы ссылкой. QR — чтобы выбрать из подписок.",
+        "tg_channels_screen_title": "📋 Каналы",
+        "tg_channels_summary": "Каналов в дайджесте: <b>{count}</b>",
+        "tg_no_channels_yet": "Каналы не выбраны — откройте «Каналы».",
+        "btn_tg_channels": "📋 Каналы ({count})",
         "tg_qr_prompt": (
             "<b>Сканируйте QR</b> (файл выше, не сжимайте)\n\n"
             "Телефон: <b>Настройки → Устройства → Подключить устройство</b>.\n"
             "Подтвердите вход — бот пришлёт «Telegram подключён».\n\n"
             "QR ~30 сек → «Обновить QR»."
         ),
-        "tg_qr_link_hint": (
-            "Запасной способ: скопируйте ссылку и откройте <b>в Telegram на телефоне</b> "
-            "(или долгое нажатие → Открыть, если ссылка кликабельна):"
-        ),
         "btn_tg_qr_refresh": "🔄 Обновить QR",
-        "btn_tg_connect_phone": "📱 Войти по номеру",
         "tg_qr_expired": "QR истёк. Нажмите «Обновить QR» или запросите новый через «Подключить Telegram».",
         "tg_qr_refreshed": "Новый QR отправлен",
         "tg_qr_not_active": "Сначала нажмите «Подключить Telegram»",
@@ -274,22 +277,25 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_unavailable": "Platform unavailable",
         "step_frequency_platform": "<b>Schedule · {platform}</b>\n\nHow often to send the digest?",
         "telegram_screen_hint": (
-            "1. Tap «Connect Telegram» — a QR code will appear.\n"
-            "2. In Telegram: Settings → Devices → Link Desktop Device → scan the QR.\n"
-            "3. Pick channels — «My channels»."
+            "<b>Two ways:</b>\n"
+            "• <b>QR</b> — link account and pick channels from subscriptions\n"
+            "• <b>Links</b> — paste @channel or t.me/… manually"
         ),
+        "btn_tg_add_links": "🔗 Links",
+        "tg_status_manual": "📋 Channels added manually",
+        "tg_channels_screen_hint_linked": "Pick from subscriptions or add by link.",
+        "tg_channels_screen_hint_manual": "Add channels by link. Use QR to pick from subscriptions.",
+        "tg_channels_screen_title": "📋 Channels",
+        "tg_channels_summary": "Channels in digest: <b>{count}</b>",
+        "tg_no_channels_yet": "No channels selected — open «Channels».",
+        "btn_tg_channels": "📋 Channels ({count})",
         "tg_qr_prompt": (
             "<b>Scan the QR</b> (file above — don't compress)\n\n"
             "Phone: <b>Settings → Devices → Link Desktop Device</b>.\n"
             "Confirm — the bot will send «Telegram connected».\n\n"
             "QR ~30 sec → «Refresh QR»."
         ),
-        "tg_qr_link_hint": (
-            "Fallback: copy the link and open it <b>in Telegram on your phone</b> "
-            "(or long press → Open if tappable):"
-        ),
         "btn_tg_qr_refresh": "🔄 Refresh QR",
-        "btn_tg_connect_phone": "📱 Sign in with phone",
         "tg_qr_expired": "QR expired. Tap «Refresh QR» or start over with «Connect Telegram».",
         "tg_qr_refreshed": "New QR sent",
         "tg_qr_not_active": "Tap «Connect Telegram» first",

@@ -27,3 +27,12 @@ async def can_deliver_platform(
     if not is_platform_scheduled(settings):
         return False
     return await is_platform_connected(session, user, platform)
+
+
+async def can_test_digest(
+    session: AsyncSession,
+    user: User,
+    platform: str,
+) -> bool:
+    """On-demand test digest: connected sources only, schedule not required."""
+    return await is_platform_connected(session, user, platform)

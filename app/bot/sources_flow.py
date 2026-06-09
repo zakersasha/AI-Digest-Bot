@@ -1,8 +1,9 @@
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.platform_screens import show_telegram_screen
+from app.bot.keyboards import CB_PLATFORM_TELEGRAM, CB_TG_CHANNELS
+from app.bot.platform_screens import show_telegram_channels_screen, show_telegram_screen
 from app.bot.screen import edit_from_callback
 from app.bot.states import OnboardingStates
 from app.i18n import t
@@ -11,14 +12,30 @@ from app.utils.links import parse_channel_links
 from app.repositories.source_repository import SourceRepository
 
 
+def _add_links_back_keyboard(lang: str, tg_ui: str) -> InlineKeyboardMarkup:
+    back_cb = CB_PLATFORM_TELEGRAM if tg_ui == "main" else CB_TG_CHANNELS
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=back_cb)],
+        ]
+    )
+
+
 async def show_add_source_prompt(
     callback: CallbackQuery,
     state: FSMContext,
     session: AsyncSession,
     lang: str,
 ) -> None:
+    data = await state.get_data()
+    tg_ui = data.get("tg_ui", "channels")
     await state.set_state(OnboardingStates.waiting_add_source)
-    await edit_from_callback(callback, state, t(lang, "sources_add_prompt"), None)
+    await edit_from_callback(
+        callback,
+        state,
+        t(lang, "sources_add_prompt"),
+        _add_links_back_keyboard(lang, tg_ui),
+    )
 
 
 async def process_source_links(
@@ -56,11 +73,22 @@ async def refresh_telegram_screen(
     *,
     status_line: str | None = None,
 ) -> None:
-    await show_telegram_screen(
-        target,
-        state,
-        session,
-        lang,
-        telegram_id,
-        status_line=status_line,
-    )
+    data = await state.get_data()
+    if data.get("tg_ui") == "channels":
+        await show_telegram_channels_screen(
+            target,
+            state,
+            session,
+            lang,
+            telegram_id,
+            status_line=status_line,
+        )
+    else:
+        await show_telegram_screen(
+            target,
+            state,
+            session,
+            lang,
+            telegram_id,
+            status_line=status_line,
+        )

@@ -38,7 +38,7 @@ from app.i18n import frequency_label, resolve_lang, t
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.repositories.user_repository import UserRepository
 from app.services.digest_service import DigestService
-from app.services.platform_readiness import can_deliver_platform, is_platform_connected
+from app.services.platform_readiness import can_deliver_platform, can_test_digest, is_platform_connected
 from app.utils.logging import get_logger
 from app.workers.digest_scheduler import get_digest_scheduler
 
@@ -58,7 +58,12 @@ async def cb_platforms_menu(callback: CallbackQuery, session: AsyncSession, stat
 
 @router.callback_query(F.data.in_({CB_PLATFORM_TELEGRAM, CB_TG_CONTINUE}))
 async def cb_open_telegram(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
+    from app.bot.handlers.telethon_auth import cancel_telegram_login
+    from app.services.telethon_link import cancel_phone_login
+
     lang = await resolve_lang(session, callback.from_user.id)
+    cancel_telegram_login(callback.from_user.id)
+    await cancel_phone_login(callback.from_user.id)
     await callback.answer()
     if callback.message:
         await show_telegram_screen(
@@ -251,12 +256,12 @@ async def cb_test_digest(
         await callback.answer()
         return
 
-    ps = await PlatformSettingsRepository(session).get(user.id, platform)
-    if not await can_deliver_platform(session, user, platform, ps):
-        await callback.answer(t(lang, "platform_not_ready"), show_alert=True)
+    if not await can_test_digest(session, user, platform):
+        await callback.answer(t(lang, "platform_connect_first"), show_alert=True)
         return
 
-    frequency = ps.digest_frequency if ps else "1d"
+    ps = await PlatformSettingsRepository(session).get(user.id, platform)
+    frequency = (ps.digest_frequency if ps and ps.digest_frequency else None) or "1d"
     lock = _digest_locks.setdefault(callback.from_user.id, asyncio.Lock())
     if lock.locked():
         await callback.answer(t(lang, "digest_in_progress"), show_alert=True)

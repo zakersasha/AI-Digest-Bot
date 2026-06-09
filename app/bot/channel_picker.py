@@ -93,11 +93,7 @@ async def show_channel_picker(
         markup = _picker_keyboard(lang, channels, active, page)
 
     await state.update_data(tg_picker_page=page, tg_picker_count=len(channels))
-    data = await state.get_data()
-    if data.get("screen_chat_id") and data.get("screen_message_id"):
-        await edit_screen(target, state, text, markup)
-    else:
-        await target.answer(text, reply_markup=markup)
+    await edit_screen(target, state, text, markup)
 
 
 async def toggle_channel(

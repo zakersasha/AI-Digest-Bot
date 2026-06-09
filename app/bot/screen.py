@@ -1,7 +1,9 @@
+from aiogram import Bot
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
+    BufferedInputFile,
     CallbackQuery,
     InlineKeyboardMarkup,
     LinkPreviewOptions,
@@ -138,6 +140,56 @@ async def edit_from_callback(
         )
 
 
+async def screen_chat_id(state: FSMContext) -> int | None:
+    data = await state.get_data()
+    return data.get("screen_chat_id")
+
+
+async def replace_screen_at(
+    bot: Bot,
+    state: FSMContext,
+    chat_id: int,
+    text: str,
+    markup: ScreenMarkup = None,
+    *,
+    parse_mode: str | None = ParseMode.HTML,
+    link_preview_options: LinkPreviewOptions | None = None,
+) -> Message:
+    await _delete_screen(bot, state)
+    sent = await bot.send_message(
+        chat_id,
+        text,
+        reply_markup=markup,
+        parse_mode=parse_mode,
+        link_preview_options=link_preview_options,
+    )
+    await bind_screen(state, sent)
+    return sent
+
+
+async def replace_screen_document(
+    bot: Bot,
+    state: FSMContext,
+    chat_id: int,
+    file_bytes: bytes,
+    filename: str,
+    caption: str,
+    markup: InlineKeyboardMarkup | None = None,
+    *,
+    parse_mode: str | None = ParseMode.HTML,
+) -> Message:
+    await _delete_screen(bot, state)
+    sent = await bot.send_document(
+        chat_id=chat_id,
+        document=BufferedInputFile(file_bytes, filename=filename),
+        caption=caption,
+        reply_markup=markup,
+        parse_mode=parse_mode,
+    )
+    await bind_screen(state, sent)
+    return sent
+
+
 async def edit_by_state(
     bot,
     state: FSMContext,
@@ -162,5 +214,18 @@ async def edit_by_state(
             link_preview_options=link_preview_options,
         )
     except TelegramBadRequest as exc:
-        if "message is not modified" not in str(exc).lower():
-            raise
+        err = str(exc).lower()
+        if "message is not modified" in err:
+            return
+        if _is_edit_forbidden(exc) or "there is no text" in err:
+            await replace_screen_at(
+                bot,
+                state,
+                chat_id,
+                text,
+                markup,
+                parse_mode=parse_mode,
+                link_preview_options=link_preview_options,
+            )
+            return
+        raise

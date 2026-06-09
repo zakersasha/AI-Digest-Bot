@@ -33,14 +33,28 @@ async def msg_source_links(
     new_count, dup_count, _ = await process_source_links(message, session, message.text or "")
 
     if new_count == 0 and dup_count == 0:
-        await refresh_telegram_screen(
-            message,
-            state,
-            session,
-            lang,
-            message.from_user.id,
-            status_line=t(lang, "sources_parse_failed"),
-        )
+        data = await state.get_data()
+        if data.get("tg_ui") == "main":
+            from app.bot.platform_screens import show_telegram_screen
+
+            await show_telegram_screen(
+                message,
+                state,
+                session,
+                lang,
+                message.from_user.id,
+                status_line=t(lang, "sources_parse_failed"),
+                from_user_action=True,
+            )
+        else:
+            await refresh_telegram_screen(
+                message,
+                state,
+                session,
+                lang,
+                message.from_user.id,
+                status_line=t(lang, "sources_parse_failed"),
+            )
         return
 
     try:
@@ -55,14 +69,28 @@ async def msg_source_links(
     else:
         status = None
 
-    await refresh_telegram_screen(
-        message,
-        state,
-        session,
-        lang,
-        message.from_user.id,
-        status_line=status,
-    )
+    data = await state.get_data()
+    if data.get("tg_ui") == "main":
+        from app.bot.platform_screens import show_telegram_screen
+
+        await show_telegram_screen(
+            message,
+            state,
+            session,
+            lang,
+            message.from_user.id,
+            status_line=status,
+            from_user_action=True,
+        )
+    else:
+        await refresh_telegram_screen(
+            message,
+            state,
+            session,
+            lang,
+            message.from_user.id,
+            status_line=status,
+        )
 
 
 @router.callback_query(F.data == CB_SRC_ADD)
