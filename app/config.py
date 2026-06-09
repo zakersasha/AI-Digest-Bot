@@ -80,7 +80,6 @@ class Settings(BaseSettings):
         "gmail_client_secret",
         "linkedin_client_id",
         "linkedin_client_secret",
-        "linkedin_extra_scopes",
         mode="before",
     )
     @classmethod
