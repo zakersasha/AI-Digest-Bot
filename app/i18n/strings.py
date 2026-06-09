@@ -26,10 +26,14 @@ STRINGS: dict[str, dict[str, str]] = {
             "3. Выберите каналы — «Мои каналы»."
         ),
         "tg_qr_prompt": (
-            "<b>Сканируйте QR в Telegram</b>\n\n"
-            "На телефоне: <b>Настройки → Устройства → Подключить устройство</b>.\n"
+            "<b>Сканируйте QR</b> (файл выше, не сжимайте)\n\n"
+            "Телефон: <b>Настройки → Устройства → Подключить устройство</b>.\n"
             "Подтвердите вход — бот пришлёт «Telegram подключён».\n\n"
-            "QR живёт ~30 сек. Не успели — «Обновить QR»."
+            "QR ~30 сек → «Обновить QR»."
+        ),
+        "tg_qr_link_hint": (
+            "Запасной способ: скопируйте ссылку и откройте <b>в Telegram на телефоне</b> "
+            "(или долгое нажатие → Открыть, если ссылка кликабельна):"
         ),
         "btn_tg_qr_refresh": "🔄 Обновить QR",
         "btn_tg_connect_phone": "📱 Войти по номеру",
@@ -275,10 +279,14 @@ STRINGS: dict[str, dict[str, str]] = {
             "3. Pick channels — «My channels»."
         ),
         "tg_qr_prompt": (
-            "<b>Scan the QR in Telegram</b>\n\n"
-            "On your phone: <b>Settings → Devices → Link Desktop Device</b>.\n"
-            "Confirm login — the bot will send «Telegram connected».\n\n"
-            "QR expires in ~30 sec. Tap «Refresh QR» if needed."
+            "<b>Scan the QR</b> (file above — don't compress)\n\n"
+            "Phone: <b>Settings → Devices → Link Desktop Device</b>.\n"
+            "Confirm — the bot will send «Telegram connected».\n\n"
+            "QR ~30 sec → «Refresh QR»."
+        ),
+        "tg_qr_link_hint": (
+            "Fallback: copy the link and open it <b>in Telegram on your phone</b> "
+            "(or long press → Open if tappable):"
         ),
         "btn_tg_qr_refresh": "🔄 Refresh QR",
         "btn_tg_connect_phone": "📱 Sign in with phone",

@@ -119,15 +119,18 @@ async def start_qr_login(settings: Settings, *, telegram_id: int) -> tuple[bytes
         client = _new_client(settings)
         try:
             await connect_telethon(client, settings)
-            qr_login = await client.qr_login(ignored_ids=[telegram_id])
+            # except_ids = already authorized on THIS client — fresh session must use []
+            qr_login = await client.qr_login()
             url = _qr_url(qr_login)
+            if not url.startswith("tg://login?token="):
+                raise ValueError("qr_url_invalid")
             _active_logins[telegram_id] = _ActiveLogin(
                 client=client,
                 mode="qr",
                 qr_login=qr_login,
                 created_at=datetime.now(tz=UTC),
             )
-            logger.info("telethon_qr_started", telegram_id=telegram_id)
+            logger.info("telethon_qr_started", telegram_id=telegram_id, url_len=len(url))
             return qr_png_bytes(url), url
         except Exception:
             await client.disconnect()

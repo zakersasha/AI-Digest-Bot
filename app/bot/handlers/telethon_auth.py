@@ -177,6 +177,24 @@ def _start_qr_wait_task(
     _QR_WAIT_TASKS[telegram_id] = task
 
 
+async def _deliver_qr(
+    target: Message,
+    png: bytes,
+    url: str,
+    lang: str,
+) -> None:
+    """Document (not photo) — Telegram recompresses photos and breaks QR codes."""
+    await target.answer_document(
+        BufferedInputFile(png, filename="telegram-login-qr.png"),
+        caption=t(lang, "tg_qr_prompt"),
+        reply_markup=_qr_keyboard(lang),
+    )
+    await target.answer(
+        f"{t(lang, 'tg_qr_link_hint')}\n\n<code>{url}</code>",
+        disable_web_page_preview=True,
+    )
+
+
 async def _send_qr_prompt(
     target: Message,
     state: FSMContext,
@@ -187,17 +205,13 @@ async def _send_qr_prompt(
 ) -> None:
     settings = get_settings()
     try:
-        png, _url = await start_qr_login(settings, telegram_id=telegram_id)
+        png, url = await start_qr_login(settings, telegram_id=telegram_id)
     except Exception:
         await target.answer(t(lang, "tg_login_failed"))
         return
 
     await state.set_state(OnboardingStates.waiting_telegram_qr)
-    await target.answer_photo(
-        BufferedInputFile(png, filename="telegram-qr.png"),
-        caption=t(lang, "tg_qr_prompt"),
-        reply_markup=_qr_keyboard(lang),
-    )
+    await _deliver_qr(target, png, url, lang)
     _start_qr_wait_task(target.bot, state.storage, telegram_id, lang, username=username)
 
 
@@ -219,18 +233,14 @@ async def cb_tg_connect(callback: CallbackQuery, session: AsyncSession, state: F
 async def cb_tg_qr_refresh(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     try:
-        png, _url = await refresh_qr_login(callback.from_user.id)
+        png, url = await refresh_qr_login(callback.from_user.id)
     except ValueError:
         await callback.answer(t(lang, "tg_qr_not_active"), show_alert=True)
         return
 
     await callback.answer(t(lang, "tg_qr_refreshed"))
     if callback.message:
-        await callback.message.answer_photo(
-            BufferedInputFile(png, filename="telegram-qr.png"),
-            caption=t(lang, "tg_qr_prompt"),
-            reply_markup=_qr_keyboard(lang),
-        )
+        await _deliver_qr(callback.message, png, url, lang)
         _start_qr_wait_task(
             callback.bot,
             state.storage,
