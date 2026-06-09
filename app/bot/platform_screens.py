@@ -15,7 +15,7 @@ from app.bot.keyboards import (
     CB_SRC_REMOVE,
     CB_TEST_DIGEST_PREFIX,
 )
-from app.bot.screen import edit_by_state, edit_from_callback, replace_screen
+from app.bot.screen import _delete_screen, bind_screen, edit_by_state, edit_from_callback, edit_screen, replace_screen
 from app.bot.states import OnboardingStates
 from app.config import get_settings
 from app.i18n import t
@@ -220,10 +220,12 @@ async def show_gmail_screen(
     telegram_id: int,
     *,
     status_line: str | None = None,
+    from_user_action: bool = False,
 ) -> None:
     user = await UserRepository(session).get_by_telegram_id(telegram_id)
     if not user:
         return
+    await session.refresh(user)
 
     linked = UserRepository(session).has_gmail(user)
     settings = await PlatformSettingsRepository(session).get(user.id, "gmail")
@@ -238,7 +240,11 @@ async def show_gmail_screen(
     await state.update_data(active_platform="gmail")
     markup = _gmail_keyboard(lang, telegram_id, user, linked)
     data = await state.get_data()
-    if data.get("screen_chat_id") and data.get("screen_message_id"):
+    if from_user_action:
+        await _delete_screen(target.bot, state)
+        await bind_screen(state, target)
+        await edit_screen(target, state, text, markup)
+    elif data.get("screen_chat_id") and data.get("screen_message_id"):
         await edit_by_state(target.bot, state, text, markup)
     else:
         await replace_screen(target, state, text, markup)

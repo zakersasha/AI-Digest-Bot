@@ -25,7 +25,14 @@ async def cb_gmail_legacy(callback: CallbackQuery, session: AsyncSession, state:
     lang = await resolve_lang(session, callback.from_user.id)
     await callback.answer()
     if callback.message:
-        await show_gmail_screen(callback.message, state, session, lang, callback.from_user.id)
+        await show_gmail_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            from_user_action=True,
+        )
 
 
 @router.callback_query(F.data == CB_GMAIL_CHECK)
@@ -48,6 +55,7 @@ async def cb_gmail_check(callback: CallbackQuery, session: AsyncSession, state: 
             lang,
             callback.from_user.id,
             status_line=t(lang, "gmail_linked", email=user.gmail_email or ""),
+            from_user_action=True,
         )
 
 
@@ -124,4 +132,11 @@ async def cb_gmail_disconnect(callback: CallbackQuery, session: AsyncSession, st
         scheduler.unschedule_user_platform(user.id, "gmail")  # sync, no DB
 
     if callback.message:
-        await show_gmail_screen(callback.message, state, session, lang, callback.from_user.id)
+        await show_gmail_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            from_user_action=True,
+        )

@@ -18,6 +18,7 @@ CB_PLATFORM_LINKEDIN = "plat:linkedin"
 CB_GMAIL_DISCONNECT = "gmail:disconnect"
 CB_GMAIL_CHECK = "gmail:check"
 CB_GMAIL_PASTE = "gmail:paste"
+CB_GMAIL_CONTINUE = "gmail:continue"
 CB_SCHEDULE_PREFIX = "sched:"
 CB_TEST_DIGEST_PREFIX = "test:"
 

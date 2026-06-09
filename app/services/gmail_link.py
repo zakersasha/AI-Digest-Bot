@@ -18,7 +18,10 @@ async def link_gmail_account(
     gmail = GmailService(settings)
     tokens, email = await gmail.complete_oauth(code)
     repo = UserRepository(session)
-    await repo.save_gmail_tokens(telegram_id, tokens, email)
+    await repo.get_or_create(telegram_id, None)
+    saved = await repo.save_gmail_tokens(telegram_id, tokens, email)
+    if not saved:
+        raise ValueError("gmail_user_not_found")
     await session.commit()
     logger.info("gmail_linked", telegram_id=telegram_id, email=email)
     return email
