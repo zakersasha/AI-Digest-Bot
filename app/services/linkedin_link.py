@@ -13,8 +13,7 @@ async def link_linkedin_account(
 ) -> str:
     service = LinkedInService(settings)
     tokens = await service.exchange_code(code)
-    access = tokens["access_token"]
-    info = await service.fetch_member_info(access)
+    info = await service.resolve_member_info(tokens)
     name = info.get("name") or info.get("given_name") or "LinkedIn"
     member_id = str(info.get("sub") or "")
 

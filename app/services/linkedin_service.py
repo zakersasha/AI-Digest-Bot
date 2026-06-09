@@ -1,3 +1,4 @@
+import base64
 import json
 import time
 from dataclasses import dataclass
@@ -6,10 +7,11 @@ from urllib.parse import urlencode
 
 import httpx
 
-from app.config import Settings
+from app.config import Settings, effective_linkedin_proxy_url
 from app.models.linkedin_profile import LinkedInProfile
 from app.services.content_message import ContentMessage
 from app.utils.crypto import decrypt_session, encrypt_session
+from app.utils.http_proxy import create_httpx_client, proxy_host
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -37,6 +39,23 @@ class FollowedProfile:
 class LinkedInService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._proxy_url = effective_linkedin_proxy_url(settings)
+
+    def _client(self, *, timeout: float = 30.0) -> httpx.AsyncClient:
+        return create_httpx_client(self._proxy_url, timeout)
+
+    @staticmethod
+    def _decode_jwt_payload(token: str) -> dict:
+        try:
+            parts = token.split(".")
+            if len(parts) < 2:
+                return {}
+            payload = parts[1]
+            padding = "=" * (-len(payload) % 4)
+            raw = base64.urlsafe_b64decode(payload + padding)
+            return json.loads(raw)
+        except Exception:
+            return {}
 
     def is_configured(self) -> bool:
         return bool(self._settings.linkedin_client_id and self._settings.linkedin_client_secret)
@@ -68,7 +87,7 @@ class LinkedInService:
             "client_id": self._settings.linkedin_client_id,
             "client_secret": self._settings.linkedin_client_secret,
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with self._client() as client:
             response = await client.post(LINKEDIN_TOKEN_URL, data=payload)
             response.raise_for_status()
             data = response.json()
@@ -100,7 +119,7 @@ class LinkedInService:
             "client_id": self._settings.linkedin_client_id,
             "client_secret": self._settings.linkedin_client_secret,
         }
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with self._client() as client:
             response = await client.post(LINKEDIN_TOKEN_URL, data=payload)
             response.raise_for_status()
             refreshed = response.json()
@@ -118,17 +137,44 @@ class LinkedInService:
         }
 
     async def fetch_member_info(self, access_token: str) -> dict:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(LINKEDIN_USERINFO_URL, headers=self._headers(access_token))
+        headers = {"Authorization": f"Bearer {access_token}"}
+        async with self._client() as client:
+            response = await client.get(LINKEDIN_USERINFO_URL, headers=headers)
             response.raise_for_status()
             return response.json()
+
+    async def resolve_member_info(self, tokens: dict) -> dict:
+        id_token = tokens.get("id_token")
+        if id_token:
+            claims = self._decode_jwt_payload(id_token)
+            if claims.get("sub"):
+                logger.info("linkedin_member_info_from_id_token")
+                return claims
+
+        access = tokens.get("access_token")
+        if not access:
+            raise ValueError("linkedin_no_token")
+
+        try:
+            return await self.fetch_member_info(access)
+        except httpx.HTTPError as exc:
+            logger.warning(
+                "linkedin_userinfo_failed",
+                error=str(exc),
+                proxy=proxy_host(self._proxy_url) if self._proxy_url else None,
+            )
+            if id_token:
+                claims = self._decode_jwt_payload(id_token)
+                if claims.get("sub"):
+                    return claims
+            raise
 
     async def fetch_followed_profiles(self, encrypted_tokens: str) -> list[FollowedProfile]:
         access_token, _ = await self.get_access_token(encrypted_tokens)
         profiles: list[FollowedProfile] = []
         seen: set[str] = set()
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with self._client() as client:
             try:
                 response = await client.get(
                     f"{LINKEDIN_API}/rest/memberFollowedOrganizations",
@@ -219,7 +265,7 @@ class LinkedInService:
         messages: list[ContentMessage] = []
         since_ts = int(since.timestamp() * 1000)
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with self._client() as client:
             author_urn = await self._resolve_author_urn(client, access_token, profile)
             if not author_urn:
                 logger.warning("linkedin_author_unresolved", slug=profile.profile_slug)

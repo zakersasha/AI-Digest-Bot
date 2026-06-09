@@ -66,6 +66,7 @@ class Settings(BaseSettings):
         alias="LINKEDIN_EXTRA_SCOPES",
         description="Optional extra scopes if your app has Community/Marketing API products approved",
     )
+    linkedin_proxy_url: str | None = Field(default=None, alias="LINKEDIN_PROXY_URL")
 
     def gmail_redirect_is_localhost(self) -> bool:
         uri = self.gmail_redirect_uri.lower()
@@ -80,6 +81,7 @@ class Settings(BaseSettings):
         "gmail_client_secret",
         "linkedin_client_id",
         "linkedin_client_secret",
+        "linkedin_proxy_url",
         mode="before",
     )
     @classmethod
@@ -175,6 +177,11 @@ def effective_telethon_proxy_url(settings: Settings) -> str | None:
 def effective_openai_proxy_url(settings: Settings) -> str | None:
     """OpenAI: OPENAI_PROXY_URL, else the same proxy chain as Telethon."""
     return settings.openai_proxy_url or effective_telethon_proxy_url(settings)
+
+
+def effective_linkedin_proxy_url(settings: Settings) -> str | None:
+    """LinkedIn API: LINKEDIN_PROXY_URL, else BOT/TELEGRAM proxy chain."""
+    return settings.linkedin_proxy_url or effective_telethon_proxy_url(settings)
 
 
 @lru_cache
