@@ -20,7 +20,9 @@ LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 LINKEDIN_API = "https://api.linkedin.com"
 LINKEDIN_VERSION = "202401"
 
-LINKEDIN_SCOPES = "openid profile email r_organization_follows r_organization_social"
+# Sign In with LinkedIn (OIDC) — only these three scopes work out of the box.
+# See: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/sign-in-with-linkedin-v2
+LINKEDIN_OIDC_SCOPES = ("openid", "profile", "email")
 
 
 @dataclass(frozen=True)
@@ -39,13 +41,22 @@ class LinkedInService:
     def is_configured(self) -> bool:
         return bool(self._settings.linkedin_client_id and self._settings.linkedin_client_secret)
 
+    def oauth_scopes(self) -> str:
+        extra = (self._settings.linkedin_extra_scopes or "").strip()
+        scopes = list(LINKEDIN_OIDC_SCOPES)
+        if extra:
+            for part in extra.split():
+                if part and part not in scopes:
+                    scopes.append(part)
+        return " ".join(scopes)
+
     def build_auth_url(self, state: str) -> str:
         params = {
             "response_type": "code",
             "client_id": self._settings.linkedin_client_id,
             "redirect_uri": self._settings.linkedin_redirect_uri,
             "state": state,
-            "scope": LINKEDIN_SCOPES,
+            "scope": self.oauth_scopes(),
         }
         return f"{LINKEDIN_AUTH_URL}?{urlencode(params)}"
 

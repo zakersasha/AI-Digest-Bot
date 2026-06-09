@@ -61,6 +61,11 @@ class Settings(BaseSettings):
         alias="LINKEDIN_REDIRECT_URI",
     )
     linkedin_max_posts: int = Field(default=30, alias="LINKEDIN_MAX_POSTS")
+    linkedin_extra_scopes: str = Field(
+        default="",
+        alias="LINKEDIN_EXTRA_SCOPES",
+        description="Optional extra scopes if your app has Community/Marketing API products approved",
+    )
 
     def gmail_redirect_is_localhost(self) -> bool:
         uri = self.gmail_redirect_uri.lower()
@@ -75,6 +80,7 @@ class Settings(BaseSettings):
         "gmail_client_secret",
         "linkedin_client_id",
         "linkedin_client_secret",
+        "linkedin_extra_scopes",
         mode="before",
     )
     @classmethod
