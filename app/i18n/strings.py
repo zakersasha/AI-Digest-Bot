@@ -21,10 +21,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_unavailable": "Платформа недоступна",
         "step_frequency_platform": "<b>Расписание · {platform}</b>\n\nКак часто присылать дайджест?",
         "telegram_screen_hint": (
-            "1. Нажмите «Подключить Telegram» и подтвердите номер.\n"
-            "2. Введите код из Telegram (и пароль 2FA, если есть).\n"
-            "3. Выберите каналы из подписок — «Мои каналы»."
+            "1. Нажмите «Подключить Telegram» — появится QR-код.\n"
+            "2. В приложении Telegram: Настройки → Устройства → Подключить устройство → сканируйте QR.\n"
+            "3. Выберите каналы — «Мои каналы»."
         ),
+        "tg_qr_prompt": (
+            "<b>Сканируйте QR в Telegram</b>\n\n"
+            "На телефоне: <b>Настройки → Устройства → Подключить устройство</b>.\n"
+            "Подтвердите вход — бот пришлёт «Telegram подключён».\n\n"
+            "QR живёт ~30 сек. Не успели — «Обновить QR»."
+        ),
+        "btn_tg_qr_refresh": "🔄 Обновить QR",
+        "btn_tg_connect_phone": "📱 Войти по номеру",
+        "tg_qr_expired": "QR истёк. Нажмите «Обновить QR» или запросите новый через «Подключить Telegram».",
+        "tg_qr_refreshed": "Новый QR отправлен",
+        "tg_qr_not_active": "Сначала нажмите «Подключить Telegram»",
         "tg_status_linked": "✅ Аккаунт: <b>{phone}</b>",
         "tg_status_not_linked": "<i>Аккаунт не подключён</i>",
         "platform_status_tg_linked": "✅ {phone}",
@@ -36,9 +47,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_tg_pick_done": "✅ Готово",
         "btn_share_phone": "📱 Поделиться номером",
         "tg_connect_phone_prompt": (
-            "<b>Подключение Telegram</b>\n\n"
-            "Нажмите кнопку ниже или отправьте номер в формате <code>+79001234567</code>.\n"
-            "Мы используем его только для чтения ваших подписок и каналов."
+            "<b>Вход по номеру</b> (запасной способ)\n\n"
+            "Telegram может блокировать код с нового устройства — тогда используйте QR.\n\n"
+            "Нажмите кнопку ниже или отправьте номер: <code>+79001234567</code>."
         ),
         "tg_code_prompt": "Введите код из Telegram (сообщение от Telegram, не SMS).",
         "tg_2fa_prompt": "Введите пароль двухфакторной аутентификации Telegram.",
@@ -259,10 +270,21 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_unavailable": "Platform unavailable",
         "step_frequency_platform": "<b>Schedule · {platform}</b>\n\nHow often to send the digest?",
         "telegram_screen_hint": (
-            "1. Tap «Connect Telegram» and confirm your phone number.\n"
-            "2. Enter the code from Telegram (and 2FA password if enabled).\n"
-            "3. Pick channels from your subscriptions — «My channels»."
+            "1. Tap «Connect Telegram» — a QR code will appear.\n"
+            "2. In Telegram: Settings → Devices → Link Desktop Device → scan the QR.\n"
+            "3. Pick channels — «My channels»."
         ),
+        "tg_qr_prompt": (
+            "<b>Scan the QR in Telegram</b>\n\n"
+            "On your phone: <b>Settings → Devices → Link Desktop Device</b>.\n"
+            "Confirm login — the bot will send «Telegram connected».\n\n"
+            "QR expires in ~30 sec. Tap «Refresh QR» if needed."
+        ),
+        "btn_tg_qr_refresh": "🔄 Refresh QR",
+        "btn_tg_connect_phone": "📱 Sign in with phone",
+        "tg_qr_expired": "QR expired. Tap «Refresh QR» or start over with «Connect Telegram».",
+        "tg_qr_refreshed": "New QR sent",
+        "tg_qr_not_active": "Tap «Connect Telegram» first",
         "tg_status_linked": "✅ Account: <b>{phone}</b>",
         "tg_status_not_linked": "<i>Account not connected</i>",
         "platform_status_tg_linked": "✅ {phone}",
@@ -274,9 +296,9 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_tg_pick_done": "✅ Done",
         "btn_share_phone": "📱 Share phone number",
         "tg_connect_phone_prompt": (
-            "<b>Connect Telegram</b>\n\n"
-            "Tap the button below or send your number like <code>+15551234567</code>.\n"
-            "We only use it to read your subscriptions and channels."
+            "<b>Phone sign-in</b> (fallback)\n\n"
+            "Telegram may block codes from new devices — prefer QR login.\n\n"
+            "Tap the button below or send your number: <code>+15551234567</code>."
         ),
         "tg_code_prompt": "Enter the code from Telegram (in-app message, not SMS).",
         "tg_2fa_prompt": "Enter your Telegram two-step verification password.",

@@ -11,6 +11,7 @@ python = "^3.11"
 aiogram = "^3.15.0"
 aiohttp-socks = "^0.9.0"
 telethon = "^1.42.0"
+qrcode = { version = "^8.0", extras = ["pil"] }
 sqlalchemy = { extras = ["asyncio"], version = "^2.0.36" }
 asyncpg = "^0.30.0"
 pydantic-settings = "^2.6.1"
