@@ -41,6 +41,8 @@ CB_LI_PICK_TOGGLE_PREFIX = "li:pick:toggle:"
 CB_LI_REMOVE_PREFIX = "li:remove:"
 CB_SCHEDULE_PREFIX = "sched:"
 CB_TEST_DIGEST_PREFIX = "test:"
+CB_FLOW_DIGEST = "flow:digest"
+CB_FLOW_SCHEDULE = "flow:schedule"
 
 
 def language_keyboard() -> InlineKeyboardMarkup:

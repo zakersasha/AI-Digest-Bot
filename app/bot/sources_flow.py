@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import CB_PLATFORM_TELEGRAM, CB_TG_CHANNELS
+from app.bot.onboarding_flow import is_guided, set_flow_step
 from app.bot.platform_screens import show_telegram_channels_screen, show_telegram_screen
 from app.bot.screen import edit_from_callback
 from app.bot.states import OnboardingStates
@@ -72,7 +73,16 @@ async def refresh_telegram_screen(
     telegram_id: int,
     *,
     status_line: str | None = None,
+    from_user_action: bool = False,
 ) -> None:
+    if await is_guided(state):
+        user = await UserRepository(session).get_by_telegram_id(telegram_id)
+        if user:
+            from app.repositories.source_repository import SourceRepository
+
+            count = await SourceRepository(session).count_active(user.id)
+            if count > 0:
+                await set_flow_step(state, 4)
     data = await state.get_data()
     if data.get("tg_ui") == "channels":
         await show_telegram_channels_screen(
@@ -91,4 +101,5 @@ async def refresh_telegram_screen(
             lang,
             telegram_id,
             status_line=status_line,
+            from_user_action=from_user_action,
         )

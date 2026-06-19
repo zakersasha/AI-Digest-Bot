@@ -1,11 +1,33 @@
 STRINGS: dict[str, dict[str, str]] = {
     "ru": {
-        "welcome": (
-            "👋 <b>AI Digest Bot</b>\n\n"
-            "Персональные AI-сводки из разных платформ.\n\n"
-            "Выберите язык:"
-        ),
+        "flow_step_prefix": "<b>Шаг {step}/{total}</b>",
+        "welcome": "Давайте выберем язык",
         "platforms_menu": "🏠 <b>Ваши платформы</b>\n\nНажмите платформу — внутри подключение и расписание:",
+        "platforms_menu_onboarding": "Выберите платформу, с которой начнёте получать инсайты.",
+        "platforms_menu_main": "🏠 <b>Главное меню</b>\n\nНастройте другие платформы или измените расписание:",
+        "telegram_step3": (
+            "Добавьте каналы для дайджеста.\n\n"
+            "<b>Два способа:</b>\n"
+            "• <b>QR</b> — подключить Telegram и выбрать из подписок\n"
+            "• <b>Ссылки</b> — вставить @channel или t.me/… вручную"
+        ),
+        "tg_channels_screen_body": (
+            "Добавьте каналы.\n\n"
+            "Нажмите «▼ Выбрать каналы» — откроется список подписок.\n"
+            "Или добавьте ссылкой."
+        ),
+        "step_get_digest": "Получите первый дайджест — так вы увидите ценность сервиса.",
+        "step_set_schedule": "Настройте время и частоту дайджеста.",
+        "step5_after_digest": "Отлично! Теперь задайте расписание.",
+        "btn_get_digest": "🔥 Получить дайджест",
+        "btn_flow_schedule": "⏱ Настроить расписание",
+        "btn_tg_pick_channels_dropdown": "▼ Выбрать каналы",
+        "tg_picker_selected": "Выбрано:",
+        "tg_picker_none_selected": "<i>Пока ничего не выбрано</i>",
+        "li_api_denied": (
+            "❌ LinkedIn API не разрешает читать посты с текущими правами.\n"
+            "Нужен Community Management API и LINKEDIN_EXTRA_SCOPES в .env."
+        ),
         "platform_linkedin": "LinkedIn",
         "platform_coming_soon": "Скоро будет доступно",
         "soon": "скоро",
@@ -27,17 +49,24 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "btn_tg_add_links": "🔗 Ссылки",
         "tg_status_manual": "📋 Каналы добавлены вручную",
-        "tg_channels_screen_hint_linked": "Выберите из подписок или добавьте ссылкой.",
+        "tg_channels_screen_hint_linked": (
+            "Нажмите «▼ Выбрать каналы» — откроется inline-список подписок.\n"
+            "Можно искать по названию. Или добавьте ссылкой."
+        ),
         "tg_channels_screen_hint_manual": "Добавьте каналы ссылкой. QR — чтобы выбрать из подписок.",
         "tg_channels_screen_title": "📋 Каналы",
         "tg_channels_summary": "Каналов в дайджесте: <b>{count}</b>",
         "tg_no_channels_yet": "Каналы не выбраны — откройте «Каналы».",
         "btn_tg_channels": "📋 Каналы ({count})",
         "tg_qr_prompt": (
-            "<b>Сканируйте QR</b> (файл выше, не сжимайте)\n\n"
-            "Телефон: <b>Настройки → Устройства → Подключить устройство</b>.\n"
-            "Подтвердите вход — бот пришлёт «Telegram подключён».\n\n"
-            "QR ~30 сек → «Обновить QR»."
+            "<b>Сканируйте QR</b> (файл выше — не сжимайте)\n\n"
+            "<b>Где открыть на телефоне:</b>\n"
+            "Telegram → <b>Настройки → Устройства → Подключить устройство</b>\n\n"
+            "<b>Безопасность:</b>\n"
+            "• Мы <b>не видим</b> ваши личные чаты и сообщения\n"
+            "• Доступ только к <b>списку каналов</b>, на которые вы подписаны\n"
+            "• Сессию можно отключить в боте в любой момент\n\n"
+            "QR действует ~30 сек → «Обновить QR»"
         ),
         "btn_tg_qr_refresh": "🔄 Обновить QR",
         "tg_qr_expired": "QR истёк. Нажмите «Обновить QR» или запросите новый через «Подключить Telegram».",
@@ -79,7 +108,12 @@ STRINGS: dict[str, dict[str, str]] = {
             "✅ <b>Telegram подключён</b>: {phone}\n\n"
             "Нажмите «Продолжить» — выберите каналы для дайджеста."
         ),
-        "tg_picker_hint": "Ваши подписки ({count}). Нажмите, чтобы добавить или убрать:",
+        "tg_picker_hint": "▼ Список подписок ({count}). Начните вводить название для поиска:",
+        "tg_inline_not_linked_title": "Сначала подключите Telegram",
+        "tg_inline_not_linked_desc": "Нажмите «Подключить Telegram» на экране бота",
+        "tg_inline_fetch_failed_title": "Не удалось загрузить каналы",
+        "tg_inline_type_to_search": "Введите название канала для поиска",
+        "tg_inline_use_button": "Нажмите кнопку «▼ Выбрать каналы» — откроется выпадающий список",
         "tg_picker_empty": "Публичных каналов в подписках не найдено. Добавьте канал вручную ссылкой.",
         "telethon_session_expired": "❌ Сессия Telegram устарела. Подключите аккаунт заново.",
         "telethon_not_linked": "❌ Сначала подключите Telegram.",
@@ -301,12 +335,34 @@ STRINGS: dict[str, dict[str, str]] = {
         "pick_source_first": "❌ Настройте источник: каналы, Gmail или LinkedIn.",
     },
     "en": {
-        "welcome": (
-            "👋 <b>AI Digest Bot</b>\n\n"
-            "Personal AI digests from multiple platforms.\n\n"
-            "Choose your language:"
-        ),
+        "flow_step_prefix": "<b>Step {step}/{total}</b>",
+        "welcome": "Let's choose the language",
         "platforms_menu": "🏠 <b>Your platforms</b>\n\nTap a platform — connect and set schedule inside:",
+        "platforms_menu_onboarding": "Choose a platform to start getting insights.",
+        "platforms_menu_main": "🏠 <b>Main menu</b>\n\nSet up other platforms or change your schedule:",
+        "telegram_step3": (
+            "Add channels for your digest.\n\n"
+            "<b>Two ways:</b>\n"
+            "• <b>QR</b> — connect Telegram and pick from subscriptions\n"
+            "• <b>Links</b> — paste @channel or t.me/… manually"
+        ),
+        "tg_channels_screen_body": (
+            "Add channels.\n\n"
+            "Tap «▼ Select channels» to open the subscription list.\n"
+            "Or add by link."
+        ),
+        "step_get_digest": "Get your first digest — that's where you see the value.",
+        "step_set_schedule": "Set up digest time and frequency.",
+        "step5_after_digest": "Great! Now set your schedule.",
+        "btn_get_digest": "🔥 Get digest",
+        "btn_flow_schedule": "⏱ Set schedule",
+        "btn_tg_pick_channels_dropdown": "▼ Select channels",
+        "tg_picker_selected": "Selected:",
+        "tg_picker_none_selected": "<i>Nothing selected yet</i>",
+        "li_api_denied": (
+            "❌ LinkedIn API does not allow reading posts with current permissions.\n"
+            "Community Management API and LINKEDIN_EXTRA_SCOPES in .env are required."
+        ),
         "platform_linkedin": "LinkedIn",
         "platform_coming_soon": "Coming soon",
         "soon": "soon",
@@ -328,7 +384,10 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "btn_tg_add_links": "🔗 Links",
         "tg_status_manual": "📋 Channels added manually",
-        "tg_channels_screen_hint_linked": "Pick from subscriptions or add by link.",
+        "tg_channels_screen_hint_linked": (
+            "Tap «▼ Select channels» to open the inline subscription list.\n"
+            "You can search by name. Or add by link."
+        ),
         "tg_channels_screen_hint_manual": "Add channels by link. Use QR to pick from subscriptions.",
         "tg_channels_screen_title": "📋 Channels",
         "tg_channels_summary": "Channels in digest: <b>{count}</b>",
@@ -336,9 +395,13 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_tg_channels": "📋 Channels ({count})",
         "tg_qr_prompt": (
             "<b>Scan the QR</b> (file above — don't compress)\n\n"
-            "Phone: <b>Settings → Devices → Link Desktop Device</b>.\n"
-            "Confirm — the bot will send «Telegram connected».\n\n"
-            "QR ~30 sec → «Refresh QR»."
+            "<b>Where to open on your phone:</b>\n"
+            "Telegram → <b>Settings → Devices → Link Desktop Device</b>\n\n"
+            "<b>Security:</b>\n"
+            "• We <b>cannot</b> read your private chats or messages\n"
+            "• Access is limited to your <b>channel subscription list</b>\n"
+            "• You can disconnect anytime in the bot\n\n"
+            "QR expires in ~30 sec → «Refresh QR»"
         ),
         "btn_tg_qr_refresh": "🔄 Refresh QR",
         "tg_qr_expired": "QR expired. Tap «Refresh QR» or start over with «Connect Telegram».",
@@ -380,7 +443,12 @@ STRINGS: dict[str, dict[str, str]] = {
             "✅ <b>Telegram connected</b>: {phone}\n\n"
             "Tap «Continue» to pick channels for your digest."
         ),
-        "tg_picker_hint": "Your subscriptions ({count}). Tap to add or remove:",
+        "tg_picker_hint": "▼ Subscription list ({count}). Type to search by name:",
+        "tg_inline_not_linked_title": "Connect Telegram first",
+        "tg_inline_not_linked_desc": "Tap «Connect Telegram» on the bot screen",
+        "tg_inline_fetch_failed_title": "Failed to load channels",
+        "tg_inline_type_to_search": "Type a channel name to search",
+        "tg_inline_use_button": "Tap «▼ Select channels» to open the dropdown list",
         "tg_picker_empty": "No public channels in subscriptions. Add a channel manually by link.",
         "telethon_session_expired": "❌ Telegram session expired. Connect your account again.",
         "telethon_not_linked": "❌ Connect Telegram first.",

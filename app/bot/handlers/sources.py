@@ -69,28 +69,15 @@ async def msg_source_links(
     else:
         status = None
 
-    data = await state.get_data()
-    if data.get("tg_ui") == "main":
-        from app.bot.platform_screens import show_telegram_screen
-
-        await show_telegram_screen(
-            message,
-            state,
-            session,
-            lang,
-            message.from_user.id,
-            status_line=status,
-            from_user_action=True,
-        )
-    else:
-        await refresh_telegram_screen(
-            message,
-            state,
-            session,
-            lang,
-            message.from_user.id,
-            status_line=status,
-        )
+    await refresh_telegram_screen(
+        message,
+        state,
+        session,
+        lang,
+        message.from_user.id,
+        status_line=status,
+        from_user_action=True,
+    )
 
 
 @router.callback_query(F.data == CB_SRC_ADD)

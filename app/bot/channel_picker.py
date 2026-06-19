@@ -14,6 +14,16 @@ from app.services.telethon_service import SubscribedChannel
 PAGE_SIZE = 8
 
 
+def _selected_channel_lines(channels, active: set[str], lang: str) -> str:
+    lines: list[str] = []
+    for ch in channels:
+        if ch.username.lower() in active:
+            lines.append(f"✅ {ch.title[:32]}")
+    if not lines:
+        return t(lang, "tg_picker_none_selected")
+    return "\n".join(lines)
+
+
 def _active_usernames(sources) -> set[str]:
     return {s.telegram_source.lower() for s in sources if s.is_active}
 
@@ -31,7 +41,7 @@ def _picker_keyboard(
 
     rows: list[list[InlineKeyboardButton]] = []
     for ch in chunk:
-        mark = "✅" if ch.username.lower() in active else "⬜"
+        mark = "✅" if ch.username.lower() in active else "▫️"
         label = f"{mark} {ch.title[:28]}"
         rows.append(
             [
@@ -89,7 +99,10 @@ async def show_channel_picker(
     else:
         sources = await SourceRepository(session).list_all_for_user(user.id)
         active = _active_usernames(sources)
-        text = t(lang, "tg_picker_hint", count=len(channels))
+        selected_lines = _selected_channel_lines(channels, active, lang)
+        text = t(lang, "tg_picker_hint", count=str(len(channels)))
+        if selected_lines:
+            text += f"\n\n<b>{t(lang, 'tg_picker_selected')}</b>\n{selected_lines}"
         markup = _picker_keyboard(lang, channels, active, page)
 
     await state.update_data(tg_picker_page=page, tg_picker_count=len(channels))
@@ -139,6 +152,9 @@ async def refresh_picker_callback(
     channels = await fetch_user_channels(user)
     sources = await SourceRepository(session).list_all_for_user(user.id)
     active = _active_usernames(sources)
-    text = t(lang, "tg_picker_hint", count=len(channels))
+    selected_lines = _selected_channel_lines(channels, active, lang)
+    text = t(lang, "tg_picker_hint", count=str(len(channels)))
+    if selected_lines:
+        text += f"\n\n<b>{t(lang, 'tg_picker_selected')}</b>\n{selected_lines}"
     markup = _picker_keyboard(lang, channels, active, page)
     await edit_from_callback(callback, state, text, markup)

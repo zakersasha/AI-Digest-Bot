@@ -6,8 +6,11 @@ from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.digest_ui import deliver_digest, run_with_digest_progress
+from app.bot.onboarding_flow import finish_guided, is_guided, set_flow_step
 from app.bot.keyboards import (
     CB_ACTION_MENU,
+    CB_FLOW_DIGEST,
+    CB_FLOW_SCHEDULE,
     CB_FREQ_BACK,
     CB_GMAIL_CONTINUE,
     CB_TG_CONTINUE,
@@ -66,6 +69,8 @@ async def cb_open_telegram(callback: CallbackQuery, session: AsyncSession, state
     await cancel_phone_login(callback.from_user.id)
     await callback.answer()
     if callback.message:
+        if await is_guided(state):
+            await set_flow_step(state, 3)
         await show_telegram_screen(
             callback.message,
             state,
@@ -239,6 +244,11 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
     if not callback.message:
         return
 
+    if await is_guided(state):
+        await finish_guided(state)
+        await show_platforms_menu(callback.message, state, session, lang, callback.from_user.id)
+        return
+
     if platform == "telegram":
         await show_telegram_screen(
             callback.message,
@@ -270,15 +280,107 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
         )
 
 
-@router.callback_query(F.data.startswith(CB_TEST_DIGEST_PREFIX))
-async def cb_test_digest(
+@router.callback_query(F.data.in_({CB_FLOW_DIGEST, f"{CB_TEST_DIGEST_PREFIX}telegram"}))
+async def cb_flow_or_test_digest(
     callback: CallbackQuery,
     session: AsyncSession,
     state: FSMContext,
     digest_service: DigestService,
 ) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
+    platform = (
+        "telegram"
+        if callback.data in (CB_FLOW_DIGEST, f"{CB_TEST_DIGEST_PREFIX}telegram")
+        else callback.data.removeprefix(CB_TEST_DIGEST_PREFIX)
+    )
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if not user:
+        await callback.answer()
+        return
+
+    if not await can_test_digest(session, user, platform):
+        await callback.answer(t(lang, "platform_connect_first"), show_alert=True)
+        return
+
+    ps = await PlatformSettingsRepository(session).get(user.id, platform)
+    frequency = (ps.digest_frequency if ps and ps.digest_frequency else None) or "1d"
+    lock = _digest_locks.setdefault(callback.from_user.id, asyncio.Lock())
+    if lock.locked():
+        await callback.answer(t(lang, "digest_in_progress"), show_alert=True)
+        return
+
+    await callback.answer()
+    label = frequency_label(lang, frequency)
+    await edit_from_callback(callback, state, t(lang, "digest_progress_fetch", label=label, dots="."), None)
+
+    async with lock:
+        try:
+
+            async def _generate() -> str:
+                return await digest_service.generate_for_platform(
+                    user.id,
+                    platform,
+                    frequency,
+                    lang,
+                )
+
+            content = await run_with_digest_progress(
+                callback,
+                state,
+                lang,
+                label,
+                _generate,
+                platform=platform,
+            )
+            await deliver_digest(callback, state, lang, content)
+            if await is_guided(state) and platform == "telegram":
+                await set_flow_step(state, 5)
+                if callback.message:
+                    await show_telegram_screen(
+                        callback.message,
+                        state,
+                        session,
+                        lang,
+                        callback.from_user.id,
+                        status_line=t(lang, "step5_after_digest"),
+                    )
+        except ValueError as exc:
+            await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
+        except RuntimeError as exc:
+            await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
+        except Exception:
+            logger.exception("test_digest_failed", telegram_id=callback.from_user.id, platform=platform)
+            await edit_from_callback(callback, state, t(lang, "digest_failed"), back_to_menu_keyboard(lang))
+
+
+@router.callback_query(F.data == CB_FLOW_SCHEDULE)
+async def cb_flow_schedule(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    lang = await resolve_lang(session, callback.from_user.id)
+    platform = "telegram"
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if not user:
+        await callback.answer()
+        return
+    if not await is_platform_connected(session, user, platform):
+        await callback.answer(t(lang, "platform_connect_first"), show_alert=True)
+        return
+    await state.update_data(active_platform=platform, scheduling_platform=platform)
+    await callback.answer()
+    await show_schedule_frequency(callback, state, lang, platform)
+
+
+@router.callback_query(F.data.startswith(CB_TEST_DIGEST_PREFIX))
+async def cb_test_digest_other(
+    callback: CallbackQuery,
+    session: AsyncSession,
+    state: FSMContext,
+    digest_service: DigestService,
+) -> None:
     platform = callback.data.removeprefix(CB_TEST_DIGEST_PREFIX)
+    if platform == "telegram":
+        return
+
+    lang = await resolve_lang(session, callback.from_user.id)
     user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
     if not user:
         await callback.answer()

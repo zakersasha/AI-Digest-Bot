@@ -11,7 +11,7 @@ from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
 from app.bot.logging_middleware import LoggingMiddleware
 from app.bot.middlewares import ServicesMiddleware
-from app.config import effective_openai_proxy_url, effective_telethon_proxy_url, get_settings
+from app.config import effective_linkedin_proxy_url, effective_openai_proxy_url, effective_telethon_proxy_url, get_settings
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
 from app.web.gmail_oauth import start_oauth_server
@@ -28,14 +28,19 @@ def create_bot_session(settings) -> AiohttpSession:
 
 
 async def set_bot_commands(bot: Bot, retries: int = 3) -> None:
-    commands = [
-        BotCommand(command="start", description="Start / main menu"),
-        BotCommand(command="menu", description="Main menu"),
+    locale_commands = [
+        (None, [BotCommand(command="start", description="Let's go!"), BotCommand(command="menu", description="Main menu")]),
+        ("en", [BotCommand(command="start", description="Let's go!"), BotCommand(command="menu", description="Main menu")]),
+        ("ru", [BotCommand(command="start", description="Поехали!"), BotCommand(command="menu", description="Главное меню")]),
     ]
 
     for attempt in range(1, retries + 1):
         try:
-            await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+            for language_code, commands in locale_commands:
+                kwargs = {"scope": BotCommandScopeDefault()}
+                if language_code:
+                    kwargs["language_code"] = language_code
+                await bot.set_my_commands(commands, **kwargs)
             logger.info("bot_commands_set")
             return
         except TelegramNetworkError as exc:
@@ -138,6 +143,11 @@ async def run_bot() -> None:
                 redirect_uri=settings.linkedin_redirect_uri,
                 bot_username=bot_username,
             )
+            li_proxy = effective_linkedin_proxy_url(settings)
+            if li_proxy:
+                logger.info("linkedin_proxy_configured")
+            else:
+                logger.warning("linkedin_proxy_missing")
     else:
         logger.info("oauth_server_disabled")
 

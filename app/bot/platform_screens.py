@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import (
     CB_ACTION_MENU,
+    CB_FLOW_DIGEST,
+    CB_FLOW_SCHEDULE,
     CB_GMAIL_CHECK,
     CB_GMAIL_DISCONNECT,
     CB_GMAIL_PASTE,
@@ -37,6 +39,7 @@ from app.bot.screen import (
     replace_screen_at,
     screen_chat_id,
 )
+from app.bot.onboarding_flow import flow_step, is_guided, set_flow_step, step_text
 from app.bot.states import OnboardingStates
 from app.config import get_settings
 from app.db.session import async_session_factory
@@ -49,7 +52,15 @@ from app.repositories.user_repository import UserRepository
 from app.services.gmail_service import GmailService
 from app.services.linkedin_service import LinkedInService
 from app.services.platform_readiness import is_platform_scheduled
+from app.bot.inline_channels import warm_channel_cache
 from app.web.gmail_oauth import create_oauth_state
+
+
+def _tg_inline_pick_button(lang: str) -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        text=t(lang, "btn_tg_pick_channels_dropdown"),
+        switch_inline_query_current_chat="",
+    )
 
 
 def _format_time(hour: int, minute: int) -> str:
@@ -136,7 +147,14 @@ async def show_platforms_menu(
     if not user:
         return
 
-    lines = [t(lang, "platforms_menu")]
+    guided = await is_guided(state)
+    step = await flow_step(state)
+    if guided and step == 2:
+        lines = [step_text(lang, 2, "platforms_menu_onboarding")]
+    elif user.onboarding_complete:
+        lines = [t(lang, "platforms_menu_main")]
+    else:
+        lines = [t(lang, "platforms_menu")]
     rows: list[list[InlineKeyboardButton]] = []
 
     for pdef in PLATFORMS:
@@ -178,9 +196,25 @@ async def show_platforms_menu(
         await replace_screen(target, state, text, markup)
 
 
-def _telegram_keyboard(lang: str, *, linked: bool, channel_count: int) -> InlineKeyboardMarkup:
+def _telegram_keyboard(
+    lang: str,
+    *,
+    linked: bool,
+    channel_count: int,
+    guided_step: int | None = None,
+) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     has_channels = channel_count > 0
+
+    if guided_step == 4:
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_get_digest"), callback_data=CB_FLOW_DIGEST)]
+        )
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_tg_channels", count=str(channel_count)), callback_data=CB_TG_CHANNELS)]
+        )
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_ACTION_MENU)])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
 
     if not linked:
         rows.append(
@@ -195,22 +229,30 @@ def _telegram_keyboard(lang: str, *, linked: bool, channel_count: int) -> Inline
         )
 
     if has_channels or linked:
-        rows.append(
-            [
-                InlineKeyboardButton(
-                    text=t(lang, "btn_tg_channels", count=str(channel_count)),
-                    callback_data=CB_TG_CHANNELS,
-                )
-            ]
-        )
+        if linked:
+            rows.append([_tg_inline_pick_button(lang)])
+        else:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=t(lang, "btn_tg_channels", count=str(channel_count)),
+                        callback_data=CB_TG_CHANNELS,
+                    )
+                ]
+            )
 
     if has_channels:
-        rows.append(
-            [
-                InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}telegram"),
-                InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}telegram"),
-            ]
-        )
+        if guided_step == 5:
+            rows.append(
+                [InlineKeyboardButton(text=t(lang, "btn_flow_schedule"), callback_data=CB_FLOW_SCHEDULE)]
+            )
+        elif not guided_step or guided_step > 5:
+            rows.append(
+                [
+                    InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}telegram"),
+                    InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}telegram"),
+                ]
+            )
 
     rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_ACTION_MENU)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -228,20 +270,66 @@ def telegram_qr_keyboard(lang: str) -> InlineKeyboardMarkup:
 def _telegram_channels_keyboard(lang: str, sources, *, linked: bool) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
     if linked:
-        rows.append([InlineKeyboardButton(text=t(lang, "btn_tg_pick_channels"), callback_data=CB_TG_PICK)])
-    rows.append([InlineKeyboardButton(text=t(lang, "btn_add_source"), callback_data=CB_SRC_ADD)])
-    for source in sources:
-        from app.utils.links import channel_username
-
-        key = channel_username(source.telegram_source)
-        label = source.telegram_source
-        if source.title and source.title != source.telegram_source:
-            label = f"{source.title[:28]}"
-        rows.append(
-            [InlineKeyboardButton(text=f"🗑 {label}", callback_data=f"{CB_SRC_REMOVE}:{key}")]
-        )
+        rows.append([_tg_inline_pick_button(lang)])
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_tg_add_links"), callback_data=CB_SRC_ADD)])
     rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_PLATFORM_TELEGRAM)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _telegram_screen_body(
+    state: FSMContext,
+    session: AsyncSession,
+    user,
+    lang: str,
+    *,
+    linked: bool,
+    sources,
+    settings,
+    status_line: str | None = None,
+) -> tuple[str, InlineKeyboardMarkup]:
+    guided = await is_guided(state)
+    step = await flow_step(state)
+    guided_step: int | None = None
+    if guided:
+        if step == 3:
+            guided_step = 3
+        elif step == 4 and sources:
+            guided_step = 4
+        elif step == 5:
+            guided_step = 5
+
+    if guided and step == 3:
+        text = step_text(lang, 3, "telegram_step3")
+    elif guided and step == 4 and sources:
+        text = step_text(lang, 4, "step_get_digest")
+        text += f"\n\n{t(lang, 'tg_channels_summary', count=str(len(sources)))}"
+        text += f"\n\n{_format_channels_list(sources, lang)}"
+    elif guided and step == 5:
+        text = step_text(lang, 5, "step_set_schedule")
+        text += f"\n\n{t(lang, 'tg_channels_summary', count=str(len(sources)))}"
+    else:
+        text = f"<b>{t(lang, 'platform_telegram')}</b>\n\n"
+        text += _format_telegram_status(user, lang, linked, channel_count=len(sources))
+        if not linked and not sources:
+            text += f"\n\n{t(lang, 'telegram_screen_hint')}"
+        elif sources:
+            text += f"\n\n{t(lang, 'tg_channels_summary', count=str(len(sources)))}"
+            text += f"\n\n{_format_channels_list(sources, lang)}"
+        else:
+            text += f"\n\n{t(lang, 'tg_no_channels_yet')}"
+        if (sources or linked) and not guided:
+            text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
+
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    markup = _telegram_keyboard(
+        lang,
+        linked=linked,
+        channel_count=len(sources),
+        guided_step=guided_step,
+    )
+    return text, markup
 
 
 async def push_telegram_screen(
@@ -262,23 +350,57 @@ async def push_telegram_screen(
     await session.refresh(user)
     user_repo = UserRepository(session)
     linked = user_repo.has_telethon(user)
+    if linked:
+        try:
+            await warm_channel_cache(state, user)
+        except ValueError:
+            pass
     sources = await SourceRepository(session).list_all_for_user(user.id)
     settings = await PlatformSettingsRepository(session).get(user.id, "telegram")
-    text = f"<b>{t(lang, 'platform_telegram')}</b>\n\n"
-    text += _format_telegram_status(user, lang, linked, channel_count=len(sources))
-    if not linked and not sources:
-        text += f"\n\n{t(lang, 'telegram_screen_hint')}"
-    elif sources:
-        text += f"\n\n{t(lang, 'tg_channels_summary', count=str(len(sources)))}"
-    else:
-        text += f"\n\n{t(lang, 'tg_no_channels_yet')}"
-    if sources or linked:
-        text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
-    if status_line:
-        text += f"\n\n{status_line}"
+    text, markup = await _telegram_screen_body(
+        state, session, user, lang, linked=linked, sources=sources, settings=settings, status_line=status_line
+    )
     await state.set_state(OnboardingStates.managing_sources)
     await state.update_data(active_platform="telegram", tg_ui="main")
-    markup = _telegram_keyboard(lang, linked=linked, channel_count=len(sources))
+    await replace_screen_at(bot, state, chat_id, text, markup)
+
+
+async def push_telegram_channels_screen(
+    bot: Bot,
+    state: FSMContext,
+    session: AsyncSession,
+    lang: str,
+    telegram_id: int,
+    *,
+    status_line: str | None = None,
+) -> None:
+    chat_id = await screen_chat_id(state)
+    if not chat_id:
+        return
+    user = await UserRepository(session).get_by_telegram_id(telegram_id)
+    if not user:
+        return
+
+    user_repo = UserRepository(session)
+    linked = user_repo.has_telethon(user)
+    sources = await SourceRepository(session).list_all_for_user(user.id)
+    guided = await is_guided(state)
+    step = await flow_step(state)
+    if guided and step == 3:
+        text = step_text(lang, 3, "tg_channels_screen_body")
+    else:
+        text = f"<b>{t(lang, 'tg_channels_screen_title')}</b>\n\n"
+        if linked:
+            text += f"{t(lang, 'tg_channels_screen_hint_linked')}\n\n"
+        else:
+            text += f"{t(lang, 'tg_channels_screen_hint_manual')}\n\n"
+    text += _format_channels_list(sources, lang)
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    await state.set_state(OnboardingStates.managing_sources)
+    await state.update_data(active_platform="telegram", tg_ui="channels")
+    markup = _telegram_channels_keyboard(lang, sources, linked=linked)
     await replace_screen_at(bot, state, chat_id, text, markup)
 
 
@@ -299,24 +421,20 @@ async def show_telegram_screen(
 
     user_repo = UserRepository(session)
     linked = user_repo.has_telethon(user)
+    if linked:
+        try:
+            await warm_channel_cache(state, user)
+        except ValueError:
+            pass
+
     sources = await SourceRepository(session).list_all_for_user(user.id)
     settings = await PlatformSettingsRepository(session).get(user.id, "telegram")
-    text = f"<b>{t(lang, 'platform_telegram')}</b>\n\n"
-    text += _format_telegram_status(user, lang, linked, channel_count=len(sources))
-    if not linked and not sources:
-        text += f"\n\n{t(lang, 'telegram_screen_hint')}"
-    elif sources:
-        text += f"\n\n{t(lang, 'tg_channels_summary', count=str(len(sources)))}"
-    else:
-        text += f"\n\n{t(lang, 'tg_no_channels_yet')}"
-    if sources or linked:
-        text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
-    if status_line:
-        text += f"\n\n{status_line}"
+    text, markup = await _telegram_screen_body(
+        state, session, user, lang, linked=linked, sources=sources, settings=settings, status_line=status_line
+    )
 
     await state.set_state(OnboardingStates.managing_sources)
     await state.update_data(active_platform="telegram", tg_ui="main")
-    markup = _telegram_keyboard(lang, linked=linked, channel_count=len(sources))
     data = await state.get_data()
     if from_user_action:
         await _delete_screen(target.bot, state)
@@ -353,11 +471,16 @@ async def show_telegram_channels_screen(
     user_repo = UserRepository(session)
     linked = user_repo.has_telethon(user)
     sources = await SourceRepository(session).list_all_for_user(user.id)
-    text = f"<b>{t(lang, 'tg_channels_screen_title')}</b>\n\n"
-    if linked:
-        text += f"{t(lang, 'tg_channels_screen_hint_linked')}\n\n"
+    guided = await is_guided(state)
+    step = await flow_step(state)
+    if guided and step == 3:
+        text = step_text(lang, 3, "tg_channels_screen_body")
     else:
-        text += f"{t(lang, 'tg_channels_screen_hint_manual')}\n\n"
+        text = f"<b>{t(lang, 'tg_channels_screen_title')}</b>\n\n"
+        if linked:
+            text += f"{t(lang, 'tg_channels_screen_hint_linked')}\n\n"
+        else:
+            text += f"{t(lang, 'tg_channels_screen_hint_manual')}\n\n"
     text += _format_channels_list(sources, lang)
     if status_line:
         text += f"\n\n{status_line}"
@@ -686,11 +809,19 @@ async def show_schedule_frequency(
     platform: str,
 ) -> None:
     from app.bot.keyboards import frequency_keyboard
+    from app.bot.onboarding_flow import flow_step, is_guided, step_text
 
     await state.update_data(scheduling_platform=platform, active_platform=platform)
+    guided = await is_guided(state)
+    step = await flow_step(state)
+    if guided and step == 5:
+        text = step_text(lang, 5, "step_set_schedule")
+        text += f"\n\n{t(lang, 'step_frequency_platform', platform=t(lang, f'platform_{platform}'))}"
+    else:
+        text = t(lang, "step_frequency_platform", platform=t(lang, f"platform_{platform}"))
     await edit_from_callback(
         callback,
         state,
-        t(lang, "step_frequency_platform", platform=t(lang, f"platform_{platform}")),
+        text,
         frequency_keyboard(lang, platform=platform),
     )

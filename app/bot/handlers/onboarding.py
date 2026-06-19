@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.keyboards import CB_LANG_EN, CB_LANG_RU, language_keyboard
+from app.bot.onboarding_flow import finish_guided, is_guided, set_flow_step, start_guided, step_text
 from app.bot.platform_screens import show_platforms_menu
 from app.bot.screen import open_screen
 from app.i18n import DEFAULT_LANG, resolve_lang, t
@@ -24,8 +25,18 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
     await session.commit()
 
     if not user.language:
-        await open_screen(message, state, t(DEFAULT_LANG, "welcome"), language_keyboard())
+        await start_guided(state)
+        await open_screen(
+            message,
+            state,
+            step_text(DEFAULT_LANG, 1, "welcome"),
+            language_keyboard(),
+        )
         return
+
+    if not user.onboarding_complete:
+        await start_guided(state)
+        await set_flow_step(state, 2)
 
     await show_platforms_menu(message, state, session, user.language, message.from_user.id)
 
@@ -34,11 +45,10 @@ async def cmd_start(message: Message, session: AsyncSession, state: FSMContext) 
 async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = callback.data.split(":")[1]
     user = await UserRepository(session).set_language(callback.from_user.id, lang)
-    if user:
-        user.onboarding_complete = True
     await session.commit()
     await callback.answer()
     if callback.message:
+        await set_flow_step(state, 2)
         await show_platforms_menu(callback.message, state, session, lang, callback.from_user.id)
 
 
@@ -49,4 +59,9 @@ async def cmd_menu(message: Message, session: AsyncSession, state: FSMContext) -
     if user and user.language:
         await show_platforms_menu(message, state, session, lang, message.from_user.id)
     else:
-        await open_screen(message, state, t(DEFAULT_LANG, "welcome"), language_keyboard())
+        await open_screen(
+            message,
+            state,
+            step_text(DEFAULT_LANG, 1, "welcome"),
+            language_keyboard(),
+        )

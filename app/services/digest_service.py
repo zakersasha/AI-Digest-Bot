@@ -174,14 +174,19 @@ class DigestService:
         label = frequency_label(language, frequency)
 
         all_messages: list[ContentMessage] = []
+        api_errors: list[str] = []
+        latest_tokens: dict | None = None
         try:
             for profile in profiles:
                 try:
-                    posts = await self._linkedin.fetch_posts(
+                    posts, tokens, err = await self._linkedin.fetch_posts(
                         user.linkedin_tokens_encrypted,
                         profile,
                         since,
                     )
+                    latest_tokens = tokens
+                    if err:
+                        api_errors.append(f"{profile.profile_slug}: {err}")
                     all_messages.extend(posts)
                 except ValueError as exc:
                     logger.warning(
@@ -189,11 +194,20 @@ class DigestService:
                         slug=profile.profile_slug,
                         error=str(exc),
                     )
+                    api_errors.append(f"{profile.profile_slug}: {exc}")
         except httpx.HTTPError as exc:
             logger.error("linkedin_fetch_failed", user_id=user.id, error=str(exc))
             raise RuntimeError(t(language, "li_fetch_failed")) from exc
 
+        if latest_tokens:
+            await self._user_repo.update_linkedin_tokens(user.id, latest_tokens)
+            await self._session.flush()
+
         if not all_messages:
+            if api_errors and any("403" in e or "401" in e for e in api_errors):
+                raise ValueError(t(language, "li_api_denied"))
+            if api_errors:
+                logger.warning("linkedin_fetch_errors", user_id=user.id, errors=api_errors)
             raise ValueError(t(language, "no_linkedin_posts", label=label))
 
         return await self._build_digest(

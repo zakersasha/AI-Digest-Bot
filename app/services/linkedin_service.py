@@ -20,10 +20,8 @@ LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
 LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 LINKEDIN_API = "https://api.linkedin.com"
-LINKEDIN_VERSION = "202401"
+LINKEDIN_VERSIONS = ("202502", "202401", "202305")
 
-# Sign In with LinkedIn (OIDC) — only these three scopes work out of the box.
-# See: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/sign-in-with-linkedin-v2
 LINKEDIN_OIDC_SCOPES = ("openid", "profile", "email")
 
 
@@ -102,6 +100,60 @@ class LinkedInService:
     def decrypt_tokens(encrypted: str) -> dict:
         return json.loads(decrypt_session(encrypted))
 
+    def _headers(self, access_token: str, *, version: str = LINKEDIN_VERSIONS[0]) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {access_token}",
+            "LinkedIn-Version": version,
+            "X-Restli-Protocol-Version": "2.0.0",
+        }
+
+    @staticmethod
+    def _extract_post_text(item: dict) -> str:
+        commentary = item.get("commentary")
+        if isinstance(commentary, str) and commentary.strip():
+            return commentary.strip()
+        if isinstance(commentary, dict):
+            text = commentary.get("text") or ""
+            if str(text).strip():
+                return str(text).strip()
+
+        content = item.get("content")
+        if isinstance(content, dict):
+            for key in ("title", "description"):
+                value = content.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            for nested in ("article", "media", "multiImage"):
+                block = content.get(nested)
+                if isinstance(block, dict):
+                    for key in ("title", "description"):
+                        value = block.get(key)
+                        if isinstance(value, str) and value.strip():
+                            return value.strip()
+
+        text_field = item.get("text")
+        if isinstance(text_field, dict):
+            return str(text_field.get("text") or "").strip()
+        if isinstance(text_field, str):
+            return text_field.strip()
+        return ""
+
+    @staticmethod
+    def _post_timestamp(item: dict) -> int:
+        for key in ("createdAt", "lastModifiedAt", "publishedAt", "created", "lastModified"):
+            value = item.get(key)
+            if value:
+                return int(value)
+        return 0
+
+    @staticmethod
+    def _post_id(item: dict) -> str:
+        for key in ("id", "urn", "activity"):
+            value = item.get(key)
+            if value:
+                return str(value)
+        return ""
+
     async def get_access_token(self, encrypted_tokens: str) -> tuple[str, dict]:
         tokens = self.decrypt_tokens(encrypted_tokens)
         access = tokens.get("access_token")
@@ -128,13 +180,6 @@ class LinkedInService:
         if refreshed.get("refresh_token"):
             tokens["refresh_token"] = refreshed["refresh_token"]
         return tokens["access_token"], tokens
-
-    def _headers(self, access_token: str) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {access_token}",
-            "LinkedIn-Version": LINKEDIN_VERSION,
-            "X-Restli-Protocol-Version": "2.0.0",
-        }
 
     async def fetch_member_info(self, access_token: str) -> dict:
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -199,7 +244,7 @@ class LinkedInService:
                                 profile_type="company",
                                 title=str(name),
                                 url=f"https://www.linkedin.com/company/{slug}",
-                                linkedin_urn=urn,
+                                linkedin_urn=urn if isinstance(urn, str) else str(urn) if urn else None,
                             )
                         )
             except httpx.HTTPError as exc:
@@ -241,82 +286,205 @@ class LinkedInService:
         profile: LinkedInProfile,
     ) -> str | None:
         if profile.linkedin_urn:
-            return profile.linkedin_urn
-        if profile.profile_type == "company":
-            response = await client.get(
-                f"{LINKEDIN_API}/v2/organizations",
-                params={"q": "vanityName", "vanityName": profile.profile_slug},
-                headers=self._headers(access_token),
-            )
-            if response.status_code == 200:
-                elements = response.json().get("elements", [])
-                if elements:
+            urn = profile.linkedin_urn
+            if urn.startswith("urn:"):
+                return urn
+            return f"urn:li:organization:{urn}"
+
+        if profile.profile_type != "company":
+            logger.warning("linkedin_person_profile_no_urn", slug=profile.profile_slug)
+            return None
+
+        for version in LINKEDIN_VERSIONS:
+            headers = self._headers(access_token, version=version)
+            for path, params in (
+                (f"{LINKEDIN_API}/rest/organizations", {"q": "vanityName", "vanityName": profile.profile_slug}),
+                (f"{LINKEDIN_API}/v2/organizations", {"q": "vanityName", "vanityName": profile.profile_slug}),
+            ):
+                try:
+                    response = await client.get(path, params=params, headers=headers)
+                    if response.status_code != 200:
+                        continue
+                    elements = response.json().get("elements", [])
+                    if not elements:
+                        continue
                     org_id = elements[0].get("id")
-                    return f"urn:li:organization:{org_id}"
+                    if org_id:
+                        return f"urn:li:organization:{org_id}"
+                except httpx.HTTPError:
+                    continue
         return None
+
+    def _parse_post_elements(
+        self,
+        elements: list,
+        profile: LinkedInProfile,
+        since_ts: int,
+    ) -> list[ContentMessage]:
+        messages: list[ContentMessage] = []
+        label = profile.title or profile.profile_slug
+        for item in elements:
+            created = self._post_timestamp(item)
+            if created and created < since_ts:
+                continue
+            text = self._extract_post_text(item)
+            if not text:
+                continue
+            post_id = self._post_id(item)
+            post_url = profile.profile_url
+            if post_id:
+                post_url = f"https://www.linkedin.com/feed/update/{post_id}"
+            messages.append(
+                ContentMessage(
+                    text=text[:2000],
+                    source=f"linkedin:{label}",
+                    date=datetime.fromtimestamp(created / 1000, tz=UTC) if created else datetime.now(tz=UTC),
+                    message_id=str(post_id or f"{profile.profile_slug}:{created}"),
+                    post_url=post_url,
+                )
+            )
+        return messages
+
+    async def _fetch_posts_rest(
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        author_urn: str,
+        profile: LinkedInProfile,
+        since_ts: int,
+    ) -> tuple[list[ContentMessage], str | None]:
+        author_variants = (author_urn, f"List({author_urn})")
+        last_error: str | None = None
+
+        for version in LINKEDIN_VERSIONS:
+            headers = self._headers(access_token, version=version)
+            for author_value in author_variants:
+                try:
+                    response = await client.get(
+                        f"{LINKEDIN_API}/rest/posts",
+                        params={
+                            "q": "author",
+                            "author": author_value,
+                            "count": self._settings.linkedin_max_posts,
+                            "sortBy": "LAST_MODIFIED",
+                        },
+                        headers=headers,
+                    )
+                except httpx.HTTPError as exc:
+                    last_error = str(exc)
+                    continue
+
+                if response.status_code != 200:
+                    body = response.text[:300]
+                    last_error = f"HTTP {response.status_code}: {body}"
+                    logger.warning(
+                        "linkedin_posts_failed",
+                        slug=profile.profile_slug,
+                        status=response.status_code,
+                        version=version,
+                        author=author_value,
+                        body=body,
+                    )
+                    continue
+
+                messages = self._parse_post_elements(
+                    response.json().get("elements", []),
+                    profile,
+                    since_ts,
+                )
+                if messages:
+                    return messages, None
+                last_error = "empty_elements"
+
+        return [], last_error
+
+    async def _fetch_posts_ugc(
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        author_urn: str,
+        profile: LinkedInProfile,
+        since_ts: int,
+    ) -> tuple[list[ContentMessage], str | None]:
+        headers = self._headers(access_token)
+        try:
+            response = await client.get(
+                f"{LINKEDIN_API}/v2/ugcPosts",
+                params={
+                    "q": "authors",
+                    "authors": f"List({author_urn})",
+                    "count": self._settings.linkedin_max_posts,
+                },
+                headers=headers,
+            )
+        except httpx.HTTPError as exc:
+            return [], str(exc)
+
+        if response.status_code != 200:
+            body = response.text[:300]
+            logger.warning(
+                "linkedin_ugc_posts_failed",
+                slug=profile.profile_slug,
+                status=response.status_code,
+                body=body,
+            )
+            return [], f"HTTP {response.status_code}: {body}"
+
+        elements = response.json().get("elements", [])
+        messages: list[ContentMessage] = []
+        label = profile.title or profile.profile_slug
+        for item in elements:
+            created = self._post_timestamp(item)
+            if created and created < since_ts:
+                continue
+            text = self._extract_post_text(item)
+            if not text:
+                specific = item.get("specificContent", {}).get("com.linkedin.ugc.ShareContent", {})
+                if isinstance(specific, dict):
+                    share_text = specific.get("shareCommentary", {}).get("text")
+                    if isinstance(share_text, str):
+                        text = share_text.strip()
+            if not text:
+                continue
+            post_id = self._post_id(item)
+            post_url = profile.profile_url
+            if post_id:
+                post_url = f"https://www.linkedin.com/feed/update/{post_id}"
+            messages.append(
+                ContentMessage(
+                    text=text[:2000],
+                    source=f"linkedin:{label}",
+                    date=datetime.fromtimestamp(created / 1000, tz=UTC) if created else datetime.now(tz=UTC),
+                    message_id=str(post_id or f"{profile.profile_slug}:{created}"),
+                    post_url=post_url,
+                )
+            )
+        return messages, None if messages else "empty_ugc"
 
     async def fetch_posts(
         self,
         encrypted_tokens: str,
         profile: LinkedInProfile,
         since: datetime,
-    ) -> list[ContentMessage]:
-        access_token, _ = await self.get_access_token(encrypted_tokens)
-        messages: list[ContentMessage] = []
+    ) -> tuple[list[ContentMessage], dict, str | None]:
+        access_token, tokens = await self.get_access_token(encrypted_tokens)
         since_ts = int(since.timestamp() * 1000)
 
         async with self._client() as client:
             author_urn = await self._resolve_author_urn(client, access_token, profile)
             if not author_urn:
-                logger.warning("linkedin_author_unresolved", slug=profile.profile_slug)
-                return messages
+                return [], tokens, "author_unresolved"
 
-            try:
-                response = await client.get(
-                    f"{LINKEDIN_API}/rest/posts",
-                    params={
-                        "q": "author",
-                        "author": author_urn,
-                        "count": self._settings.linkedin_max_posts,
-                        "sortBy": "LAST_MODIFIED",
-                    },
-                    headers=self._headers(access_token),
-                )
-                if response.status_code != 200:
-                    logger.warning(
-                        "linkedin_posts_failed",
-                        slug=profile.profile_slug,
-                        status=response.status_code,
-                    )
-                    return messages
+            messages, error = await self._fetch_posts_rest(
+                client, access_token, author_urn, profile, since_ts
+            )
+            if messages:
+                return messages, tokens, None
 
-                for item in response.json().get("elements", []):
-                    created = item.get("createdAt") or item.get("lastModifiedAt") or 0
-                    if created < since_ts:
-                        continue
-                    text = (
-                        item.get("commentary")
-                        or item.get("text", {}).get("text")
-                        or item.get("content", {}).get("title", "")
-                    )
-                    if not text or not str(text).strip():
-                        continue
-                    post_id = item.get("id", "")
-                    post_url = profile.profile_url
-                    if post_id:
-                        post_url = f"https://www.linkedin.com/feed/update/{post_id}"
-                    label = profile.title or profile.profile_slug
-                    msg_id = str(post_id or f"{profile.profile_slug}:{created}")
-                    messages.append(
-                        ContentMessage(
-                            text=str(text).strip()[:2000],
-                            source=f"linkedin:{label}",
-                            date=datetime.fromtimestamp(created / 1000, tz=UTC),
-                            message_id=msg_id,
-                            post_url=post_url,
-                        )
-                    )
-            except httpx.HTTPError as exc:
-                logger.warning("linkedin_posts_error", slug=profile.profile_slug, error=str(exc))
+            messages, ugc_error = await self._fetch_posts_ugc(
+                client, access_token, author_urn, profile, since_ts
+            )
+            if messages:
+                return messages, tokens, None
 
-        return messages
+            return [], tokens, ugc_error or error or "no_posts"

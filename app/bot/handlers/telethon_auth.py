@@ -325,34 +325,42 @@ async def cb_tg_disconnect(callback: CallbackQuery, session: AsyncSession, state
 @router.callback_query(F.data == CB_TG_PICK)
 async def cb_tg_pick(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
-    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
-    if not user or not UserRepository(session).has_telethon(user):
-        await callback.answer(t(lang, "tg_not_linked"), show_alert=True)
-        return
-    if callback.message:
-        try:
-            await show_channel_picker(callback.message, state, session, lang, callback.from_user.id)
-            await callback.answer()
-        except ValueError as exc:
-            await callback.answer(t(lang, str(exc)), show_alert=True)
-            return
-    else:
-        await callback.answer()
+    await callback.answer(t(lang, "tg_inline_use_button"), show_alert=True)
 
 
 @router.callback_query(F.data == CB_TG_PICK_DONE)
 async def cb_tg_pick_done(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
+    from app.bot.onboarding_flow import is_guided, set_flow_step
+    from app.repositories.source_repository import SourceRepository
+
     lang = await resolve_lang(session, callback.from_user.id)
     await callback.answer()
-    if callback.message:
-        await show_telegram_channels_screen(
-            callback.message,
-            state,
-            session,
-            lang,
-            callback.from_user.id,
-            from_user_action=True,
-        )
+    if not callback.message:
+        return
+
+    user = await UserRepository(session).get_by_telegram_id(callback.from_user.id)
+    if user and await is_guided(state):
+        count = await SourceRepository(session).count_active(user.id)
+        if count > 0:
+            await set_flow_step(state, 4)
+            await show_telegram_screen(
+                callback.message,
+                state,
+                session,
+                lang,
+                callback.from_user.id,
+                from_user_action=True,
+            )
+            return
+
+    await show_telegram_channels_screen(
+        callback.message,
+        state,
+        session,
+        lang,
+        callback.from_user.id,
+        from_user_action=True,
+    )
 
 
 @router.callback_query(F.data.startswith(CB_TG_PICK_PAGE_PREFIX))
