@@ -152,7 +152,7 @@ async def run_bot() -> None:
         logger.info("oauth_server_disabled")
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await digest_scheduler.stop()
         if oauth_runner:

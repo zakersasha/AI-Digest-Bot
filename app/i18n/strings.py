@@ -318,7 +318,8 @@ STRINGS: dict[str, dict[str, str]] = {
             "Отправьте ссылки на профили LinkedIn — по одной на строку.\n\n"
             "Примеры:\n"
             "<code>https://www.linkedin.com/in/username</code>\n"
-            "<code>https://www.linkedin.com/company/acme</code>"
+            "<code>https://www.linkedin.com/company/acme</code>\n"
+            "<code>https://www.linkedin.com/feed/update/urn:li:activity:…</code>"
         ),
         "li_profiles_added": "✅ Добавлено профилей: {count}",
         "li_profiles_already": "ℹ️ Эти профили уже в списке.",
@@ -656,7 +657,8 @@ STRINGS: dict[str, dict[str, str]] = {
             "Send LinkedIn profile URLs — one per line.\n\n"
             "Examples:\n"
             "<code>https://www.linkedin.com/in/username</code>\n"
-            "<code>https://www.linkedin.com/company/acme</code>"
+            "<code>https://www.linkedin.com/company/acme</code>\n"
+            "<code>https://www.linkedin.com/feed/update/urn:li:activity:…</code>"
         ),
         "li_profiles_added": "✅ Profiles added: {count}",
         "li_profiles_already": "ℹ️ These profiles are already in the list.",

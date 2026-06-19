@@ -176,6 +176,12 @@ class DigestService:
         all_messages: list[ContentMessage] = []
         api_errors: list[str] = []
         latest_tokens: dict | None = None
+        org_urns: list[str] = []
+        try:
+            followed = await self._linkedin.fetch_followed_profiles(user.linkedin_tokens_encrypted)
+            org_urns = [p.linkedin_urn for p in followed if p.linkedin_urn]
+        except Exception:
+            pass
         try:
             for profile in profiles:
                 try:
@@ -183,6 +189,8 @@ class DigestService:
                         user.linkedin_tokens_encrypted,
                         profile,
                         since,
+                        member_id=user.linkedin_member_id,
+                        org_urns=org_urns,
                     )
                     latest_tokens = tokens
                     if err:

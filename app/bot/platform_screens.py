@@ -340,9 +340,10 @@ async def push_telegram_screen(
     telegram_id: int,
     *,
     status_line: str | None = None,
+    chat_id: int | None = None,
 ) -> None:
-    chat_id = await screen_chat_id(state)
-    if not chat_id:
+    resolved_chat = chat_id or await screen_chat_id(state)
+    if not resolved_chat:
         return
     user = await UserRepository(session).get_by_telegram_id(telegram_id)
     if not user:
@@ -366,7 +367,7 @@ async def push_telegram_screen(
     if data.get("screen_chat_id") and data.get("screen_message_id"):
         await edit_by_state(bot, state, text, markup)
     else:
-        await replace_screen_at(bot, state, chat_id, text, markup)
+        await replace_screen_at(bot, state, resolved_chat, text, markup)
 
 
 async def push_telegram_channels_screen(
@@ -377,9 +378,10 @@ async def push_telegram_channels_screen(
     telegram_id: int,
     *,
     status_line: str | None = None,
+    chat_id: int | None = None,
 ) -> None:
-    chat_id = await screen_chat_id(state)
-    if not chat_id:
+    resolved_chat = chat_id or await screen_chat_id(state)
+    if not resolved_chat:
         return
     user = await UserRepository(session).get_by_telegram_id(telegram_id)
     if not user:
@@ -409,7 +411,7 @@ async def push_telegram_channels_screen(
     if data.get("screen_chat_id") and data.get("screen_message_id"):
         await edit_by_state(bot, state, text, markup)
     else:
-        await replace_screen_at(bot, state, chat_id, text, markup)
+        await replace_screen_at(bot, state, resolved_chat, text, markup)
 
 
 async def show_telegram_screen(

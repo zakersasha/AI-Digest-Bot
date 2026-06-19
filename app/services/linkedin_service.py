@@ -344,7 +344,7 @@ class LinkedInService:
                 except httpx.HTTPError:
                     continue
 
-        logger.warning("linkedin_person_profile_no_urn", slug=profile.profile_slug)
+        logger.info("linkedin_person_profile_no_urn", slug=profile.profile_slug)
         return None
 
     async def _resolve_author_urn(
@@ -546,25 +546,48 @@ class LinkedInService:
         encrypted_tokens: str,
         profile: LinkedInProfile,
         since: datetime,
+        *,
+        member_id: str | None = None,
+        org_urns: list[str] | None = None,
     ) -> tuple[list[ContentMessage], dict, str | None]:
         access_token, tokens = await self.get_access_token(encrypted_tokens)
         since_ts = int(since.timestamp() * 1000)
+        api_error: str | None = None
+        author_urn: str | None = None
 
         async with self._client() as client:
-            author_urn = await self._resolve_author_urn(client, access_token, profile)
-            if not author_urn:
-                return [], tokens, "author_unresolved"
-
-            messages, error = await self._fetch_posts_rest(
-                client, access_token, author_urn, profile, since_ts
+            author_urn = await self._resolve_author_urn(
+                client,
+                access_token,
+                profile,
+                member_id=member_id,
+                org_urns=org_urns,
             )
-            if messages:
-                return messages, tokens, None
+            if author_urn:
+                messages, error = await self._fetch_posts_rest(
+                    client, access_token, author_urn, profile, since_ts
+                )
+                if messages:
+                    return messages, tokens, None
 
-            messages, ugc_error = await self._fetch_posts_ugc(
-                client, access_token, author_urn, profile, since_ts
-            )
-            if messages:
-                return messages, tokens, None
+                messages, ugc_error = await self._fetch_posts_ugc(
+                    client, access_token, author_urn, profile, since_ts
+                )
+                if messages:
+                    return messages, tokens, None
 
-            return [], tokens, ugc_error or error or "no_posts"
+                api_error = ugc_error or error or "no_posts"
+
+        public = await fetch_public_posts(
+            profile,
+            since,
+            max_posts=self._settings.linkedin_max_posts,
+            proxy_url=self._proxy_url,
+        )
+        if public:
+            logger.info("linkedin_public_used", slug=profile.profile_slug, count=len(public))
+            return public, tokens, None
+
+        if not author_urn:
+            return [], tokens, api_error or "author_unresolved"
+        return [], tokens, api_error or "no_posts"
