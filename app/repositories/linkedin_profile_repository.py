@@ -73,7 +73,7 @@ class LinkedInProfileRepository:
             profile_slug=parsed.slug,
             profile_type=parsed.profile_type,
             title=title or parsed.title,
-            linkedin_urn=linkedin_urn,
+            linkedin_urn=linkedin_urn or parsed.linkedin_urn,
             is_active=True,
         )
         self._session.add(profile)
@@ -97,3 +97,12 @@ class LinkedInProfileRepository:
 
     async def count_active(self, user_id: int) -> int:
         return len(await self.list_active_for_user(user_id))
+
+    async def update_profile_urn(self, profile_id: int, linkedin_urn: str) -> None:
+        result = await self._session.execute(
+            select(LinkedInProfile).where(LinkedInProfile.id == profile_id)
+        )
+        profile = result.scalar_one_or_none()
+        if profile and linkedin_urn:
+            profile.linkedin_urn = linkedin_urn
+            await self._session.flush()

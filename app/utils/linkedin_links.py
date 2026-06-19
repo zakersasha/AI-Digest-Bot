@@ -6,6 +6,11 @@ _PROFILE_PATH_RE = re.compile(
     r"^/?(?P<kind>in|company|school|showcase)/(?P<slug>[a-zA-Z0-9\-_%]+)/?",
     re.IGNORECASE,
 )
+_ACTIVITY_IN_PATH_RE = re.compile(
+    r"(?:feed/update/urn:li:(?:activity|share):|posts/[^/]+activity[-:])"
+    r"(?P<id>\d{10,})",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -14,6 +19,12 @@ class ParsedLinkedInProfile:
     profile_type: str
     url: str
     title: str
+    linkedin_urn: str | None = None
+
+
+def _activity_from_path(path: str) -> str | None:
+    match = _ACTIVITY_IN_PATH_RE.search(path)
+    return match.group("id") if match else None
 
 
 def normalize_linkedin_profile(raw: str) -> ParsedLinkedInProfile:
@@ -37,6 +48,18 @@ def normalize_linkedin_profile(raw: str) -> ParsedLinkedInProfile:
         return ParsedLinkedInProfile(slug=slug.lower(), profile_type="person", url=url, title=slug)
     else:
         raise ValueError("format")
+
+    activity_id = _activity_from_path(path)
+    if activity_id:
+        urn = f"urn:li:activity:{activity_id}"
+        url = f"https://www.linkedin.com/feed/update/{urn}"
+        return ParsedLinkedInProfile(
+            slug=f"activity-{activity_id}",
+            profile_type="person",
+            url=url,
+            title=activity_id,
+            linkedin_urn=urn,
+        )
 
     match = _PROFILE_PATH_RE.match(path)
     if not match:

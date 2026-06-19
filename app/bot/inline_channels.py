@@ -67,3 +67,20 @@ def filter_channels(channels: list[SubscribedChannel], query: str) -> list[Subsc
         for ch in channels
         if needle in ch.title.lower() or needle in ch.username.lower().removeprefix("@")
     ]
+
+
+def sort_channels_for_picker(
+    channels: list[SubscribedChannel],
+    active: set[str],
+) -> list[SubscribedChannel]:
+    selected: list[SubscribedChannel] = []
+    unselected: list[SubscribedChannel] = []
+    for ch in channels:
+        key = ch.username.lower().removeprefix("@")
+        if key in active:
+            selected.append(ch)
+        else:
+            unselected.append(ch)
+    selected.sort(key=lambda ch: ch.title.lower())
+    unselected.sort(key=lambda ch: ch.title.lower())
+    return selected + unselected

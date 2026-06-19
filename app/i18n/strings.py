@@ -51,7 +51,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "tg_status_manual": "📋 Каналы добавлены вручную",
         "tg_channels_screen_hint_linked": (
             "Нажмите «▼ Выбрать каналы» — откроется inline-список подписок.\n"
-            "Можно искать по названию. Или добавьте ссылкой."
+            "✅ — уже в дайджесте. Можно выбрать несколько подряд.\n"
+            "Или добавьте ссылкой."
         ),
         "tg_channels_screen_hint_manual": "Добавьте каналы ссылкой. QR — чтобы выбрать из подписок.",
         "tg_channels_screen_title": "📋 Каналы",
@@ -114,6 +115,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "tg_inline_fetch_failed_title": "Не удалось загрузить каналы",
         "tg_inline_type_to_search": "Введите название канала для поиска",
         "tg_inline_use_button": "Нажмите кнопку «▼ Выбрать каналы» — откроется выпадающий список",
+        "tg_inline_tap_add": "нажмите, чтобы добавить",
+        "tg_inline_tap_remove": "нажмите, чтобы убрать",
         "tg_picker_empty": "Публичных каналов в подписках не найдено. Добавьте канал вручную ссылкой.",
         "telethon_session_expired": "❌ Сессия Telegram устарела. Подключите аккаунт заново.",
         "telethon_not_linked": "❌ Сначала подключите Telegram.",
@@ -386,7 +389,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "tg_status_manual": "📋 Channels added manually",
         "tg_channels_screen_hint_linked": (
             "Tap «▼ Select channels» to open the inline subscription list.\n"
-            "You can search by name. Or add by link."
+            "✅ — already in digest. You can pick several in a row.\n"
+            "Or add by link."
         ),
         "tg_channels_screen_hint_manual": "Add channels by link. Use QR to pick from subscriptions.",
         "tg_channels_screen_title": "📋 Channels",
@@ -449,6 +453,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "tg_inline_fetch_failed_title": "Failed to load channels",
         "tg_inline_type_to_search": "Type a channel name to search",
         "tg_inline_use_button": "Tap «▼ Select channels» to open the dropdown list",
+        "tg_inline_tap_add": "tap to add",
+        "tg_inline_tap_remove": "tap to remove",
         "tg_picker_empty": "No public channels in subscriptions. Add a channel manually by link.",
         "telethon_session_expired": "❌ Telegram session expired. Connect your account again.",
         "telethon_not_linked": "❌ Connect Telegram first.",

@@ -3,13 +3,14 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import httpx
 
 from app.config import Settings, effective_linkedin_proxy_url
 from app.models.linkedin_profile import LinkedInProfile
 from app.services.content_message import ContentMessage
+from app.services.linkedin_public import fetch_public_posts
 from app.utils.crypto import decrypt_session, encrypt_session
 from app.utils.http_proxy import create_httpx_client, proxy_host
 from app.utils.logging import get_logger
@@ -279,21 +280,100 @@ class LinkedInService:
         logger.info("linkedin_followed_fetched", count=len(profiles))
         return profiles
 
+    async def _resolve_person_urn(
+        self,
+        client: httpx.AsyncClient,
+        access_token: str,
+        profile: LinkedInProfile,
+        *,
+        member_id: str | None = None,
+        org_urns: list[str] | None = None,
+    ) -> str | None:
+        for version in LINKEDIN_VERSIONS:
+            headers = self._headers(access_token, version=version)
+            try:
+                response = await client.get(
+                    f"{LINKEDIN_API}/v2/people",
+                    params={"q": "vanityName", "vanityName": profile.profile_slug},
+                    headers=headers,
+                )
+                if response.status_code == 200:
+                    elements = response.json().get("elements", [])
+                    if elements and elements[0].get("id"):
+                        return f"urn:li:person:{elements[0]['id']}"
+            except httpx.HTTPError:
+                continue
+
+        if member_id:
+            try:
+                response = await client.get(
+                    f"{LINKEDIN_API}/v2/me",
+                    headers=self._headers(access_token),
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    vanity = str(data.get("vanityName") or "").lower()
+                    if vanity and vanity == profile.profile_slug.lower():
+                        person_id = data.get("id") or member_id
+                        return f"urn:li:person:{person_id}"
+            except httpx.HTTPError:
+                pass
+
+        profile_url = quote(f"https://www.linkedin.com/in/{profile.profile_slug}/", safe="")
+        for org_urn in org_urns or []:
+            for version in LINKEDIN_VERSIONS:
+                headers = self._headers(access_token, version=version)
+                try:
+                    response = await client.get(
+                        f"{LINKEDIN_API}/rest/vanityUrl",
+                        params={
+                            "q": "vanityUrlAsOrganization",
+                            "vanityUrl": f"https://www.linkedin.com/in/{profile.profile_slug}/",
+                            "organization": org_urn,
+                        },
+                        headers=headers,
+                    )
+                    if response.status_code != 200:
+                        continue
+                    elements = response.json().get("elements", [])
+                    if not elements:
+                        continue
+                    person_urn = elements[0].get("personUrn") or elements[0].get("memberUrn")
+                    if person_urn:
+                        return str(person_urn)
+                except httpx.HTTPError:
+                    continue
+
+        logger.warning("linkedin_person_profile_no_urn", slug=profile.profile_slug)
+        return None
+
     async def _resolve_author_urn(
         self,
         client: httpx.AsyncClient,
         access_token: str,
         profile: LinkedInProfile,
+        *,
+        member_id: str | None = None,
+        org_urns: list[str] | None = None,
     ) -> str | None:
         if profile.linkedin_urn:
             urn = profile.linkedin_urn
+            if urn.startswith("urn:li:activity:"):
+                return None
             if urn.startswith("urn:"):
                 return urn
+            if urn.startswith("person:") or urn.startswith("organization:"):
+                return f"urn:li:{urn}"
             return f"urn:li:organization:{urn}"
 
         if profile.profile_type != "company":
-            logger.warning("linkedin_person_profile_no_urn", slug=profile.profile_slug)
-            return None
+            return await self._resolve_person_urn(
+                client,
+                access_token,
+                profile,
+                member_id=member_id,
+                org_urns=org_urns,
+            )
 
         for version in LINKEDIN_VERSIONS:
             headers = self._headers(access_token, version=version)

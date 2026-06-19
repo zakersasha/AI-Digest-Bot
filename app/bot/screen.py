@@ -34,7 +34,11 @@ async def _delete_screen(bot, state: FSMContext) -> None:
 
 def _is_edit_forbidden(exc: TelegramBadRequest) -> bool:
     err = str(exc).lower()
-    return "can't be edited" in err or "message to edit not found" in err
+    return (
+        "can't be edited" in err
+        or "message to edit not found" in err
+        or "message_id_invalid" in err
+    )
 
 
 async def replace_screen(

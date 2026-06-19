@@ -23,7 +23,12 @@ _SOURCE_STATES = (
 )
 
 
-@router.message(StateFilter(*_SOURCE_STATES), F.text, ~F.text.startswith("/"))
+@router.message(
+    StateFilter(*_SOURCE_STATES),
+    F.text,
+    ~F.text.startswith("/"),
+    ~F.text.startswith("✓ "),
+)
 async def msg_source_links(
     message: Message,
     state: FSMContext,

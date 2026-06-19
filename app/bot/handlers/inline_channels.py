@@ -13,6 +13,7 @@ from app.bot.inline_channels import (
     channel_result_id,
     filter_channels,
     get_channels_for_inline,
+    sort_channels_for_picker,
     username_from_result_id,
     warm_channel_cache,
 )
@@ -69,7 +70,10 @@ async def inline_channel_query(
         )
         return
 
-    matched = filter_channels(channels, query.query)[:_MAX_RESULTS]
+    matched = filter_channels(channels, query.query)
+    sources = await SourceRepository(session).list_all_for_user(user.id)
+    active = {s.telegram_source.lower().removeprefix("@") for s in sources if s.is_active}
+    matched = sort_channels_for_picker(matched, active)[:_MAX_RESULTS]
     if not matched:
         await query.answer(
             results=[
@@ -87,18 +91,18 @@ async def inline_channel_query(
         )
         return
 
-    sources = await SourceRepository(session).list_all_for_user(user.id)
-    active = {s.telegram_source.lower() for s in sources if s.is_active}
-
     results: list[InlineQueryResultArticle] = []
     for ch in matched:
         username = ch.username if ch.username.startswith("@") else f"@{ch.username}"
-        mark = "✅ " if username.lower() in active else ""
+        key = username.lower().removeprefix("@")
+        selected = key in active
+        mark = "✅ " if selected else ""
+        action = t(lang, "tg_inline_tap_remove") if selected else t(lang, "tg_inline_tap_add")
         results.append(
             InlineQueryResultArticle(
                 id=channel_result_id(username),
-                title=f"{mark}{ch.title[:64]}",
-                description=username,
+                title=f"{mark}{ch.title[:56]}",
+                description=f"{username} · {action}",
                 input_message_content=InputTextMessageContent(
                     message_text=f"✓ {ch.title}",
                 ),
@@ -106,7 +110,7 @@ async def inline_channel_query(
         )
 
     await state.update_data(tg_inline_picking=True)
-    await query.answer(results=results, cache_time=5, is_personal=True)
+    await query.answer(results=results, cache_time=0, is_personal=True)
 
 
 @router.chosen_inline_result()
@@ -127,8 +131,8 @@ async def inline_channel_chosen(
 
     repo = SourceRepository(session)
     sources = await repo.list_all_for_user(user.id)
-    active = {s.telegram_source.lower() for s in sources if s.is_active}
-    key = username.lower()
+    active = {s.telegram_source.lower().removeprefix("@") for s in sources if s.is_active}
+    key = username.lower().removeprefix("@")
 
     if key in active:
         await repo.remove_source(user.id, username)

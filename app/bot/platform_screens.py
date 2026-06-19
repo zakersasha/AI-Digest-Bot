@@ -362,7 +362,11 @@ async def push_telegram_screen(
     )
     await state.set_state(OnboardingStates.managing_sources)
     await state.update_data(active_platform="telegram", tg_ui="main")
-    await replace_screen_at(bot, state, chat_id, text, markup)
+    data = await state.get_data()
+    if data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(bot, state, text, markup)
+    else:
+        await replace_screen_at(bot, state, chat_id, text, markup)
 
 
 async def push_telegram_channels_screen(
@@ -401,7 +405,11 @@ async def push_telegram_channels_screen(
     await state.set_state(OnboardingStates.managing_sources)
     await state.update_data(active_platform="telegram", tg_ui="channels")
     markup = _telegram_channels_keyboard(lang, sources, linked=linked)
-    await replace_screen_at(bot, state, chat_id, text, markup)
+    data = await state.get_data()
+    if data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(bot, state, text, markup)
+    else:
+        await replace_screen_at(bot, state, chat_id, text, markup)
 
 
 async def show_telegram_screen(
@@ -437,9 +445,7 @@ async def show_telegram_screen(
     await state.update_data(active_platform="telegram", tg_ui="main")
     data = await state.get_data()
     if from_user_action:
-        await _delete_screen(target.bot, state)
-        await bind_screen(state, target)
-        await edit_screen(target, state, text, markup)
+        await replace_screen(target, state, text, markup)
     elif data.get("screen_chat_id") and data.get("screen_message_id"):
         await edit_by_state(target.bot, state, text, markup)
     else:
@@ -490,9 +496,7 @@ async def show_telegram_channels_screen(
     markup = _telegram_channels_keyboard(lang, sources, linked=linked)
     data = await state.get_data()
     if from_user_action:
-        await _delete_screen(target.bot, state)
-        await bind_screen(state, target)
-        await edit_screen(target, state, text, markup)
+        await replace_screen(target, state, text, markup)
     elif data.get("screen_chat_id") and data.get("screen_message_id"):
         await edit_by_state(target.bot, state, text, markup)
     else:
