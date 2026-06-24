@@ -67,13 +67,13 @@ class Settings(BaseSettings):
         description="Optional extra scopes if your app has Community/Marketing API products approved",
     )
     linkedin_proxy_url: str | None = Field(default=None, alias="LINKEDIN_PROXY_URL")
-    google_cse_api_key: str = Field(
-        default="",
+    google_cse_api_key: str | None = Field(
+        default=None,
         alias="GOOGLE_CSE_API_KEY",
         description="Optional Google Custom Search API key for LinkedIn public post discovery",
     )
-    google_cse_cx: str = Field(
-        default="",
+    google_cse_cx: str | None = Field(
+        default=None,
         alias="GOOGLE_CSE_CX",
         description="Programmable Search Engine ID (cx) for LinkedIn post discovery",
     )
