@@ -1,7 +1,7 @@
 import re
 from datetime import UTC, datetime, timedelta
 from html import unescape
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 import httpx
 
@@ -22,16 +22,21 @@ _BROWSER_HEADERS = {
 
 _ACTIVITY_PATTERNS = (
     re.compile(r"urn:li:activity:(\d+)", re.I),
+    re.compile(r"activity%3A(\d{10,})", re.I),
+    re.compile(r"activity%2D(\d{10,})", re.I),
     re.compile(r"activity[:-](\d{10,})", re.I),
     re.compile(r"/feed/update/urn:li:activity:(\d+)", re.I),
 )
 
 
 def extract_activity_ids(text: str) -> list[str]:
+    decoded = unescape(text)
+    url_decoded = unquote(decoded)
+    blob = f"{text}\n{decoded}\n{url_decoded}"
     found: set[str] = set()
     for pattern in _ACTIVITY_PATTERNS:
-        found.update(pattern.findall(text))
-    for match in re.finditer(r"uddg=([^&\"]+)", text):
+        found.update(pattern.findall(blob))
+    for match in re.finditer(r"uddg=([^&\"]+)", blob):
         link = unquote(match.group(1))
         for pattern in _ACTIVITY_PATTERNS:
             found.update(pattern.findall(link))
@@ -40,7 +45,12 @@ def extract_activity_ids(text: str) -> list[str]:
 
 def parse_relative_age(value: str) -> timedelta | None:
     text = value.strip().lower()
-    match = re.fullmatch(r"(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)", text)
+    match = re.fullmatch(
+        r"(\d+)\s*"
+        r"(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|"
+        r"d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)",
+        text,
+    )
     if not match:
         return None
     amount = int(match.group(1))
@@ -76,7 +86,7 @@ def extract_author_slug(html: str) -> str | None:
     ):
         match = re.search(pattern, html, re.I)
         if match:
-            return match.group(1).lower()
+            return unquote(match.group(1)).lower()
     return None
 
 
@@ -126,6 +136,57 @@ async def fetch_embed_post(
     return text, post_url, relative, author_slug
 
 
+async def _google_cse_search(
+    client: httpx.AsyncClient,
+    query: str,
+    *,
+    api_key: str,
+    cx: str,
+    max_ids: int,
+) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    start = 1
+    while len(found) < max_ids and start <= 31:
+        try:
+            response = await client.get(
+                "https://www.googleapis.com/customsearch/v1",
+                params={
+                    "key": api_key,
+                    "cx": cx,
+                    "q": query,
+                    "num": min(10, max_ids - len(found)),
+                    "start": start,
+                },
+            )
+        except httpx.HTTPError as exc:
+            logger.warning("linkedin_google_cse_failed", error=str(exc))
+            break
+        if response.status_code != 200:
+            logger.warning(
+                "linkedin_google_cse_failed",
+                status=response.status_code,
+                body=response.text[:200],
+            )
+            break
+        data = response.json()
+        items = data.get("items", [])
+        if not items:
+            break
+        for item in items:
+            link = item.get("link", "")
+            for activity_id in extract_activity_ids(link):
+                if activity_id in seen:
+                    continue
+                seen.add(activity_id)
+                found.append(activity_id)
+                if len(found) >= max_ids:
+                    break
+        start += 10
+    logger.info("linkedin_google_cse_discovered", query=query[:80], count=len(found))
+    return found
+
+
 async def _probe_forward_posts(
     client: httpx.AsyncClient,
     slug: str,
@@ -134,7 +195,6 @@ async def _probe_forward_posts(
     *,
     max_checks: int = 24,
 ) -> list[tuple[str, str, str | None, str]]:
-    """Check embed for newer posts after the last indexed activity id."""
     found: list[tuple[str, str, str | None, str]] = []
     try:
         base = int(seed_id)
@@ -161,7 +221,35 @@ async def _search_activity_ids(
     profile_type: str,
     *,
     max_ids: int,
+    google_cse_api_key: str | None = None,
+    google_cse_cx: str | None = None,
 ) -> list[str]:
+    if google_cse_api_key and google_cse_cx:
+        queries = [
+            f"site:linkedin.com/posts/{slug}",
+            f"site:linkedin.com/in/{slug}",
+        ]
+        found: list[str] = []
+        seen: set[str] = set()
+        for query in queries:
+            for activity_id in await _google_cse_search(
+                client,
+                query,
+                api_key=google_cse_api_key,
+                cx=google_cse_cx,
+                max_ids=max_ids,
+            ):
+                if activity_id in seen:
+                    continue
+                seen.add(activity_id)
+                found.append(activity_id)
+                if len(found) >= max_ids:
+                    break
+            if len(found) >= max_ids:
+                break
+        if found:
+            return found[:max_ids]
+
     queries: list[str] = []
     if profile_type == "company":
         queries.append(f"site:linkedin.com/posts/{slug}")
@@ -170,8 +258,8 @@ async def _search_activity_ids(
         queries.append(f"site:linkedin.com/posts/{slug}")
         queries.append(f"site:linkedin.com/in/{slug} posts")
 
-    found: list[str] = []
-    seen: set[str] = set()
+    found = []
+    seen = set()
 
     def collect_from_html(html: str) -> None:
         for activity_id in extract_activity_ids(html):
@@ -207,6 +295,13 @@ async def _search_activity_ids(
             response = await client.get(bing_url, params={"q": query}, headers=_BROWSER_HEADERS)
             if response.status_code == 200:
                 collect_from_html(response.text)
+                for match in re.finditer(r'href="(https://www\.bing\.com/ck/a\?[^"]+)"', response.text):
+                    try:
+                        redirect = await client.get(unescape(match.group(1)), headers=_BROWSER_HEADERS)
+                        collect_from_html(str(redirect.url))
+                        collect_from_html(redirect.text)
+                    except httpx.HTTPError:
+                        pass
         except httpx.HTTPError:
             pass
         if len(found) >= max_ids:
@@ -222,9 +317,18 @@ async def discover_activity_ids(
     profile_type: str,
     *,
     max_ids: int,
+    google_cse_api_key: str | None = None,
+    google_cse_cx: str | None = None,
 ) -> list[str]:
     async with create_httpx_client(proxy_url, timeout=30.0) as client:
-        return await _search_activity_ids(client, slug, profile_type, max_ids=max_ids)
+        return await _search_activity_ids(
+            client,
+            slug,
+            profile_type,
+            max_ids=max_ids,
+            google_cse_api_key=google_cse_api_key,
+            google_cse_cx=google_cse_cx,
+        )
 
 
 async def fetch_public_posts(
@@ -233,6 +337,8 @@ async def fetch_public_posts(
     *,
     max_posts: int,
     proxy_url: str | None,
+    google_cse_api_key: str | None = None,
+    google_cse_cx: str | None = None,
 ) -> list[ContentMessage]:
     slug = profile.profile_slug.lower()
     activity_ids: list[str] = []
@@ -244,15 +350,16 @@ async def fetch_public_posts(
         activity_ids.append(slug.removeprefix("activity-"))
         search_slug = ""
 
+    discovered: list[str] = []
     if search_slug:
         discovered = await discover_activity_ids(
             proxy_url,
             search_slug,
             profile.profile_type,
             max_ids=max_posts,
+            google_cse_api_key=google_cse_api_key,
+            google_cse_cx=google_cse_cx,
         )
-    else:
-        discovered = []
     for activity_id in discovered:
         if activity_id not in activity_ids:
             activity_ids.append(activity_id)

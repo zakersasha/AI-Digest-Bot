@@ -176,6 +176,7 @@ class DigestService:
         all_messages: list[ContentMessage] = []
         api_errors: list[str] = []
         latest_tokens: dict | None = None
+        tracked_slugs = {p.profile_slug.lower() for p in profiles if not p.profile_slug.startswith("activity-")}
         org_urns: list[str] = []
         try:
             followed = await self._linkedin.fetch_followed_profiles(user.linkedin_tokens_encrypted)
@@ -183,6 +184,15 @@ class DigestService:
         except Exception:
             pass
         try:
+            feed_posts, feed_tokens = await self._linkedin.fetch_network_feed_posts(
+                user.linkedin_tokens_encrypted,
+                tracked_slugs,
+                since,
+            )
+            if feed_posts:
+                all_messages.extend(feed_posts)
+            latest_tokens = feed_tokens or latest_tokens
+
             for profile in profiles:
                 try:
                     posts, tokens, err = await self._linkedin.fetch_posts(
@@ -216,6 +226,8 @@ class DigestService:
                 raise ValueError(t(language, "li_api_denied"))
             if api_errors:
                 logger.warning("linkedin_fetch_errors", user_id=user.id, errors=api_errors)
+            if not (self._settings.google_cse_api_key and self._settings.google_cse_cx):
+                raise ValueError(t(language, "no_linkedin_posts_no_cse", label=label))
             raise ValueError(t(language, "no_linkedin_posts", label=label))
 
         return await self._build_digest(

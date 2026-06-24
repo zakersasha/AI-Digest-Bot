@@ -541,6 +541,83 @@ class LinkedInService:
             )
         return messages, None if messages else "empty_ugc"
 
+    async def fetch_network_feed_posts(
+        self,
+        encrypted_tokens: str,
+        tracked_slugs: set[str],
+        since: datetime,
+    ) -> tuple[list[ContentMessage], dict]:
+        if not tracked_slugs:
+            return [], {}
+
+        access_token, tokens = await self.get_access_token(encrypted_tokens)
+        since_ts = int(since.timestamp() * 1000)
+        slug_set = {slug.lower().removeprefix("@") for slug in tracked_slugs}
+        messages: list[ContentMessage] = []
+
+        async with self._client() as client:
+            try:
+                response = await client.get(
+                    f"{LINKEDIN_API}/v2/activityFeeds",
+                    params={"q": "networkShares", "count": 50},
+                    headers=self._headers(access_token),
+                )
+            except httpx.HTTPError as exc:
+                logger.info("linkedin_network_feed_error", error=str(exc))
+                return [], tokens
+
+            if response.status_code != 200:
+                logger.info(
+                    "linkedin_network_feed_failed",
+                    status=response.status_code,
+                    body=response.text[:200],
+                )
+                return [], tokens
+
+            elements = response.json().get("elements", [])
+            for elem in elements:
+                share_urn = elem if isinstance(elem, str) else str(elem.get("object") or elem.get("share") or "")
+                if not share_urn.startswith("urn:"):
+                    continue
+                encoded = quote(share_urn, safe="")
+                try:
+                    detail = await client.get(
+                        f"{LINKEDIN_API}/v2/shares/{encoded}",
+                        params={"projection": "(owner:(vanityName),text,created)"},
+                        headers=self._headers(access_token),
+                    )
+                except httpx.HTTPError:
+                    continue
+                if detail.status_code != 200:
+                    continue
+                data = detail.json()
+                vanity = (
+                    (data.get("owner") or {}).get("vanityName") or ""
+                ).lower()
+                if vanity not in slug_set:
+                    continue
+                created = int(data.get("created", {}).get("time", 0) or data.get("created", 0) or 0)
+                if created and created < since_ts:
+                    continue
+                text = data.get("text", {}).get("text") if isinstance(data.get("text"), dict) else data.get("text")
+                if not text or not str(text).strip():
+                    continue
+                label = vanity or "linkedin"
+                post_url = f"https://www.linkedin.com/feed/update/{share_urn}"
+                messages.append(
+                    ContentMessage(
+                        text=str(text).strip()[:2000],
+                        source=f"linkedin:{label}",
+                        date=datetime.fromtimestamp(created / 1000, tz=UTC) if created else datetime.now(tz=UTC),
+                        message_id=share_urn,
+                        post_url=post_url,
+                    )
+                )
+
+        if messages:
+            logger.info("linkedin_network_feed_used", count=len(messages))
+        return messages, tokens
+
     async def fetch_posts(
         self,
         encrypted_tokens: str,
@@ -583,6 +660,8 @@ class LinkedInService:
             since,
             max_posts=self._settings.linkedin_max_posts,
             proxy_url=self._proxy_url,
+            google_cse_api_key=self._settings.google_cse_api_key,
+            google_cse_cx=self._settings.google_cse_cx,
         )
         if public:
             logger.info("linkedin_public_used", slug=profile.profile_slug, count=len(public))

@@ -333,6 +333,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "li_not_configured": "❌ LinkedIn OAuth не настроен (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET).",
         "li_fetch_failed": "❌ Не удалось загрузить посты LinkedIn.",
         "no_linkedin_posts": "ℹ️ За период «{label}» постов нет.",
+        "no_linkedin_posts_no_cse": (
+            "ℹ️ За период «{label}» постов не найдено.\n\n"
+            "LinkedIn API не даёт читать чужие профили. Варианты:\n"
+            "1) Добавьте прямую ссылку на пост (feed/update/urn:li:activity:…)\n"
+            "2) Настройте GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX в .env для поиска публичных постов"
+        ),
         "digest_header_linkedin": "🔥 *Твой LinkedIn-дайджест {period}*",
         "digest_progress_fetch_linkedin": "📡 Загружаю LinkedIn <b>{label}</b>{dots}",
         "digest_progress_read_linkedin": "📥 Читаю посты <b>{label}</b>{dots}",
@@ -672,6 +678,12 @@ STRINGS: dict[str, dict[str, str]] = {
         "li_not_configured": "❌ LinkedIn OAuth is not configured (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET).",
         "li_fetch_failed": "❌ Failed to fetch LinkedIn posts.",
         "no_linkedin_posts": "ℹ️ No posts for «{label}».",
+        "no_linkedin_posts_no_cse": (
+            "ℹ️ No posts found for «{label}».\n\n"
+            "LinkedIn API cannot read other people's profiles. Options:\n"
+            "1) Add a direct post link (feed/update/urn:li:activity:…)\n"
+            "2) Set GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX in .env to discover public posts"
+        ),
         "digest_header_linkedin": "🔥 *Your LinkedIn digest {period}*",
         "digest_progress_fetch_linkedin": "📡 Loading LinkedIn <b>{label}</b>{dots}",
         "digest_progress_read_linkedin": "📥 Reading posts <b>{label}</b>{dots}",

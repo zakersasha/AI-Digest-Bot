@@ -1,5 +1,5 @@
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,18 +50,3 @@ async def cb_language(callback: CallbackQuery, session: AsyncSession, state: FSM
     if callback.message:
         await set_flow_step(state, 2)
         await show_platforms_menu(callback.message, state, session, lang, callback.from_user.id)
-
-
-@router.message(Command("menu"))
-async def cmd_menu(message: Message, session: AsyncSession, state: FSMContext) -> None:
-    lang = await resolve_lang(session, message.from_user.id)
-    user = await UserRepository(session).get_by_telegram_id(message.from_user.id)
-    if user and user.language:
-        await show_platforms_menu(message, state, session, lang, message.from_user.id)
-    else:
-        await open_screen(
-            message,
-            state,
-            step_text(DEFAULT_LANG, 1, "welcome"),
-            language_keyboard(),
-        )

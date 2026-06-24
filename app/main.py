@@ -29,9 +29,9 @@ def create_bot_session(settings) -> AiohttpSession:
 
 async def set_bot_commands(bot: Bot, retries: int = 3) -> None:
     locale_commands = [
-        (None, [BotCommand(command="start", description="Let's go!"), BotCommand(command="menu", description="Main menu")]),
-        ("en", [BotCommand(command="start", description="Let's go!"), BotCommand(command="menu", description="Main menu")]),
-        ("ru", [BotCommand(command="start", description="Поехали!"), BotCommand(command="menu", description="Главное меню")]),
+        (None, [BotCommand(command="start", description="Let's go!")]),
+        ("en", [BotCommand(command="start", description="Let's go!")]),
+        ("ru", [BotCommand(command="start", description="Поехали!")]),
     ]
 
     for attempt in range(1, retries + 1):

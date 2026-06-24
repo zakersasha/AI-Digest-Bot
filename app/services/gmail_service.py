@@ -14,8 +14,9 @@ from app.utils.logging import get_logger
 logger = get_logger(__name__)
 
 GMAIL_SCOPES = (
-    "https://www.googleapis.com/auth/gmail.readonly "
-    "https://www.googleapis.com/auth/userinfo.email"
+    "openid "
+    "email "
+    "https://www.googleapis.com/auth/gmail.readonly"
 )
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
