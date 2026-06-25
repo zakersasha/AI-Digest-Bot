@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
@@ -26,6 +27,8 @@ logger = get_logger(__name__)
 
 _NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 _JOB_PREFIX = "digest"
+_PLATFORM_MINUTE_OFFSET = {"telegram": 0, "gmail": 2, "linkedin": 4}
+_user_delivery_locks: dict[int, asyncio.Lock] = {}
 
 
 class DigestScheduler:
@@ -73,7 +76,9 @@ class DigestScheduler:
 
     def _add_jobs(self, user, ps: PlatformSettings) -> None:
         tz = ZoneInfo(user.timezone or "Europe/Moscow")
-        minute = ps.delivery_minute or 0
+        base_minute = ps.delivery_minute or 0
+        offset = _PLATFORM_MINUTE_OFFSET.get(ps.platform, 0)
+        minute = (base_minute + offset) % 60
         hours = delivery_hours_for_settings(ps)
 
         for slot, hour in enumerate(hours):
@@ -110,42 +115,49 @@ class DigestScheduler:
                 self._scheduler.remove_job(job.id)
 
     async def _deliver_scheduled_digest(self, user_id: int, platform: str) -> None:
-        async with async_session_factory() as session:
-            user = await UserRepository(session).get_by_id(user_id)
-            ps = await PlatformSettingsRepository(session).get(user_id, platform)
-            if not user or not ps:
-                return
-            if not await can_deliver_platform(session, user, platform, ps):
-                return
-            if not is_digest_period_elapsed(ps, user):
-                logger.info(
-                    "scheduled_digest_skipped_period",
-                    user_id=user_id,
-                    platform=platform,
-                )
-                return
+        lock = _user_delivery_locks.setdefault(user_id, asyncio.Lock())
+        async with lock:
+            async with async_session_factory() as session:
+                user = await UserRepository(session).get_by_id(user_id)
+                ps = await PlatformSettingsRepository(session).get(user_id, platform)
+                if not user or not ps:
+                    return
+                if not await can_deliver_platform(session, user, platform, ps):
+                    return
+                if not is_digest_period_elapsed(ps, user):
+                    logger.info(
+                        "scheduled_digest_skipped_period",
+                        user_id=user_id,
+                        platform=platform,
+                    )
+                    return
 
-            language = user.language or "en"
-            try:
+                language = user.language or "en"
+                try:
+                    digest_service = DigestService(session, self._ai, self._settings)
+                    content = await digest_service.generate_scheduled(user_id, platform, language)
+                except ValueError as exc:
+                    logger.info("scheduled_digest_skipped", user_id=user_id, platform=platform, reason=str(exc))
+                    try:
+                        await self._bot.send_message(user.telegram_id, str(exc))
+                    except Exception:
+                        pass
+                    return
+                except Exception:
+                    logger.exception("scheduled_digest_failed", user_id=user_id, platform=platform)
+                    try:
+                        await self._bot.send_message(user.telegram_id, t(language, "digest_failed"))
+                    except Exception:
+                        pass
+                    return
+
+            await self._send_digest(user.telegram_id, content)
+
+            async with async_session_factory() as session:
                 digest_service = DigestService(session, self._ai, self._settings)
-                content = await digest_service.generate_scheduled(user_id, platform, language)
-            except ValueError as exc:
-                logger.info("scheduled_digest_skipped", user_id=user_id, platform=platform, reason=str(exc))
-                try:
-                    await self._bot.send_message(user.telegram_id, str(exc))
-                except Exception:
-                    pass
-                return
-            except Exception:
-                logger.exception("scheduled_digest_failed", user_id=user_id, platform=platform)
-                try:
-                    await self._bot.send_message(user.telegram_id, t(language, "digest_failed"))
-                except Exception:
-                    pass
-                return
+                await digest_service.record_digest_delivery(user_id, platform)
 
-        await self._send_digest(user.telegram_id, content)
-        logger.info("scheduled_digest_sent", user_id=user_id, platform=platform)
+            logger.info("scheduled_digest_sent", user_id=user_id, platform=platform)
 
     async def _send_digest(self, telegram_id: int, content: str) -> None:
         for part in split_telegram_message(content):

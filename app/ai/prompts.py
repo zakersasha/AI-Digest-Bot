@@ -26,8 +26,10 @@ TELEGRAM_DIGEST_PROMPT = (
     f"{_SKIP_RULES.strip()}\n"
     f"{_SELECTION_RULES.strip()}\n"
     f"{_LINK_RULES.strip()}\n\n"
+    "Each item MUST start with the channel name in bold markdown: **Channel Name** — then the summary.\n"
+    "Use the exact SOURCE name from each post block (not @username).\n\n"
     "Example item:\n"
-    "1. Metro line extension announced for 2026. [{link_label}](https://t.me/moscowmap/76844)\n\n"
+    "1. **Москва 24/7** — Metro line extension announced for 2026. [{link_label}](https://t.me/moscowmap/76844)\n\n"
     "Posts:\n"
     "{messages}"
 )

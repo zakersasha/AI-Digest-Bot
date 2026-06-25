@@ -333,6 +333,7 @@ async def cb_flow_or_test_digest(
                 platform=platform,
             )
             await deliver_digest(callback, state, lang, content)
+            await digest_service.record_digest_delivery(user.id, platform)
             if await is_guided(state) and platform == "telegram":
                 await set_flow_step(state, 5)
                 if callback.message:
@@ -421,6 +422,7 @@ async def cb_test_digest_other(
                 platform=platform,
             )
             await deliver_digest(callback, state, lang, content)
+            await digest_service.record_digest_delivery(user.id, platform)
         except ValueError as exc:
             await edit_from_callback(callback, state, str(exc), back_to_menu_keyboard(lang))
         except RuntimeError as exc:

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.models.platform_settings import PlatformSettings
@@ -17,20 +17,64 @@ def delivery_hours_for_settings(settings: PlatformSettings) -> list[int]:
     return delivery_hours_for_frequency(settings.delivery_hour, settings.digest_frequency)
 
 
+def _normalize_last_digest(last: datetime) -> datetime:
+    if last.tzinfo is None:
+        return last.replace(tzinfo=UTC)
+    return last
+
+
+def _latest_slot_at_or_before(
+    now_local: datetime,
+    hour: int,
+    minute: int,
+) -> datetime:
+    slot = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if now_local < slot:
+        slot -= timedelta(days=1)
+    return slot
+
+
+def _latest_slot_for_12h(
+    now_local: datetime,
+    hour: int,
+    minute: int,
+) -> datetime:
+    slots = [
+        _latest_slot_at_or_before(now_local, (hour + offset) % 24, minute)
+        for offset in (0, 12)
+    ]
+    return max(slots)
+
+
 def is_digest_period_elapsed(
     settings: PlatformSettings,
     user: User,
     now: datetime | None = None,
 ) -> bool:
-    period = FREQUENCY_PERIOD.get(settings.digest_frequency or "")
+    frequency = settings.digest_frequency or ""
+    period = FREQUENCY_PERIOD.get(frequency)
     if not period:
         return False
 
-    now_utc = (now or user_now(user)).astimezone(UTC)
     if settings.last_digest_at is None:
         return True
 
-    last = settings.last_digest_at
-    if last.tzinfo is None:
-        last = last.replace(tzinfo=UTC)
-    return now_utc - last >= period
+    now_local = (now or user_now(user)).astimezone(
+        ZoneInfo(user.timezone or "UTC")
+    )
+    last_local = _normalize_last_digest(settings.last_digest_at).astimezone(now_local.tzinfo)
+    hour = settings.delivery_hour if settings.delivery_hour is not None else 0
+    minute = settings.delivery_minute or 0
+
+    if frequency == "1d":
+        slot = _latest_slot_at_or_before(now_local, hour, minute)
+        return last_local < slot
+
+    if frequency == "12h":
+        slot = _latest_slot_for_12h(now_local, hour, minute)
+        return last_local < slot
+
+    now_utc = now_local.astimezone(UTC)
+    last_utc = last_local.astimezone(UTC)
+    grace = timedelta(hours=2) if frequency in ("3d", "1w") else timedelta()
+    return now_utc - last_utc >= period - grace

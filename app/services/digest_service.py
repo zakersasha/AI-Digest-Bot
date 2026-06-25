@@ -112,12 +112,18 @@ class DigestService:
         if not all_messages:
             raise ValueError(t(language, "no_messages", label=label))
 
+        channel_titles: dict[str, str] = {}
+        for source in sources:
+            username = channel_username(source.telegram_source).lower()
+            channel_titles[username] = (source.title or f"@{username}").strip()
+
         return await self._build_digest(
             user.id,
             "telegram",
             frequency,
             language,
             all_messages,
+            channel_titles=channel_titles,
         )
 
     async def _generate_gmail_digest(self, user: User, frequency: str, language: str) -> str:
@@ -238,6 +244,10 @@ class DigestService:
             all_messages,
         )
 
+    async def record_digest_delivery(self, user_id: int, platform: str) -> None:
+        await self._platform_repo.update_last_digest(user_id, platform, datetime.now(tz=UTC))
+        await self._session.commit()
+
     async def _build_digest(
         self,
         user_id: int,
@@ -245,6 +255,8 @@ class DigestService:
         frequency: str,
         language: str,
         all_messages: list[ContentMessage],
+        *,
+        channel_titles: dict[str, str] | None = None,
     ) -> str:
         limits = self._settings.digest_ai_limits()
         selected = interleave_messages_by_source(all_messages, limits.max_messages)
@@ -268,7 +280,12 @@ class DigestService:
                 items.append((source_label, msg.post_url, msg.text))
             else:
                 username = channel_username(msg.source)
-                items.append((f"@{username}", msg.post_url, msg.text))
+                label = (
+                    channel_titles.get(username.lower(), f"@{username}")
+                    if channel_titles
+                    else f"@{username}"
+                )
+                items.append((label, msg.post_url, msg.text))
             post_urls.append(msg.post_url)
 
         budget = self._settings.digest_input_char_budget()
@@ -310,7 +327,6 @@ class DigestService:
         content = header + digest_body
 
         await self._digest_repo.create(user_id, frequency, content)
-        await self._platform_repo.update_last_digest(user_id, platform, datetime.now(tz=UTC))
         await self._session.commit()
 
         logger.info(
