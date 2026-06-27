@@ -5,7 +5,7 @@ from openai import APIConnectionError, APITimeoutError, RateLimitError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import AIProvider
-from app.ai.context_limits import pack_messages_for_digest
+from app.ai.context_limits import pack_messages_for_digest, pack_messages_for_digest_by_source
 from app.config import Settings
 from app.i18n import digest_title, frequency_label, t
 from app.models.user import User
@@ -18,7 +18,7 @@ from app.services.content_message import ContentMessage
 from app.services.frequency import digest_content_since
 from app.services.gmail_service import GmailService
 from app.services.linkedin_service import LinkedInService
-from app.services.message_selection import interleave_messages_by_source
+from app.services.message_selection import interleave_messages_by_source, select_balanced_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import telethon_for_digest
 from app.utils.digest_links import format_digest_links, is_no_new_content_response
@@ -265,7 +265,10 @@ class DigestService:
         channel_titles: dict[str, str] | None = None,
     ) -> str:
         limits = self._settings.digest_ai_limits()
-        selected = interleave_messages_by_source(all_messages, limits.max_messages)
+        if platform == "telegram":
+            selected = select_balanced_messages_by_source(all_messages, limits.max_messages)
+        else:
+            selected = interleave_messages_by_source(all_messages, limits.max_messages)
         if len(selected) < len(all_messages):
             logger.info(
                 "messages_truncated_for_digest",
@@ -295,13 +298,16 @@ class DigestService:
             post_urls.append(msg.post_url)
 
         budget = self._settings.digest_input_char_budget()
-        blocks = pack_messages_for_digest(
-            items,
+        pack_kwargs = dict(
             total_budget_chars=budget,
             max_messages=limits.max_messages,
             per_message_max_chars=limits.message_max_chars,
             min_message_chars=limits.min_message_chars,
         )
+        if platform == "telegram" and len({msg.source for msg in selected}) > 1:
+            blocks = pack_messages_for_digest_by_source(items, **pack_kwargs)
+        else:
+            blocks = pack_messages_for_digest(items, **pack_kwargs)
 
         if not blocks:
             label = frequency_label(language, frequency)

@@ -113,3 +113,53 @@ def pack_messages_for_digest(
         used += extra
 
     return blocks
+
+
+def pack_messages_for_digest_by_source(
+    items: list[tuple[str, str, str]],
+    *,
+    total_budget_chars: int,
+    max_messages: int,
+    per_message_max_chars: int,
+    min_message_chars: int,
+) -> list[str]:
+    """Group posts by channel with a fair char budget per source for multi-channel digests."""
+    if not items:
+        return []
+
+    groups: dict[str, list[tuple[str, str, str]]] = {}
+    order: list[str] = []
+    for item in items:
+        label = item[0]
+        if label not in groups:
+            groups[label] = []
+            order.append(label)
+        groups[label].append(item)
+
+    if len(order) <= 1:
+        return pack_messages_for_digest(
+            items,
+            total_budget_chars=total_budget_chars,
+            max_messages=max_messages,
+            per_message_max_chars=per_message_max_chars,
+            min_message_chars=min_message_chars,
+        )
+
+    section_blocks: list[str] = []
+    source_count = len(order)
+    per_source_budget = max(400, total_budget_chars // source_count)
+    per_source_messages = max(2, max_messages // source_count)
+
+    for label in order:
+        group_blocks = pack_messages_for_digest(
+            groups[label],
+            total_budget_chars=per_source_budget,
+            max_messages=per_source_messages,
+            per_message_max_chars=per_message_max_chars,
+            min_message_chars=min_message_chars,
+        )
+        if not group_blocks:
+            continue
+        section_blocks.append(f"=== {label} ===\n" + "\n\n".join(group_blocks))
+
+    return section_blocks

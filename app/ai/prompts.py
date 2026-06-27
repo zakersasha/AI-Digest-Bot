@@ -20,11 +20,20 @@ NO_NEW_CONTENT
 (no other text, no header, no list)
 """
 
+_TELEGRAM_MULTI_CHANNEL_RULES = """
+When posts come from several channels (sections marked === Channel Name ===):
+- Pick the best genuinely important item from EACH channel that has worthy news.
+- If a channel has only ads, memes, or low-value posts — include nothing from it.
+- Do NOT fill the digest from a single channel when other channels also have informative items.
+- Prefer one strong item per channel before adding a second item from the same channel.
+"""
+
 TELEGRAM_DIGEST_PROMPT = (
     "Create a digest from Telegram channel posts.\n\n"
     "Write in {language_name} only.\n"
     f"{_SKIP_RULES.strip()}\n"
     f"{_SELECTION_RULES.strip()}\n"
+    f"{_TELEGRAM_MULTI_CHANNEL_RULES.strip()}\n"
     f"{_LINK_RULES.strip()}\n\n"
     "Each item MUST start with the channel name in bold markdown: **Channel Name** — then the summary.\n"
     "Use the exact SOURCE name from each post block (not @username).\n\n"
