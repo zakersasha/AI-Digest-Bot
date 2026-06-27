@@ -123,6 +123,11 @@ class DigestScheduler:
                 if not user or not ps:
                     return
                 if not await can_deliver_platform(session, user, platform, ps):
+                    logger.info(
+                        "scheduled_digest_skipped_not_ready",
+                        user_id=user_id,
+                        platform=platform,
+                    )
                     return
                 if not is_digest_period_elapsed(ps, user):
                     logger.info(

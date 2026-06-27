@@ -6,6 +6,7 @@ from aiogram import Bot
 from app.bot.gmail_notify import notify_gmail_connected
 from app.db.session import async_session_factory
 from app.repositories.user_repository import UserRepository
+from app.services.digest_reschedule import reschedule_platform_digest
 from app.services.gmail_link import link_gmail_account
 from app.utils.logging import get_logger
 from app.config import get_settings
@@ -103,6 +104,8 @@ async def gmail_oauth_callback(request: web.Request) -> web.Response:
             await notify_gmail_connected(bot, telegram_id, email, lang)
         except Exception:
             logger.exception("gmail_notify_failed", telegram_id=telegram_id)
+
+    await reschedule_platform_digest(telegram_id, "gmail")
 
     logger.info("gmail_oauth_success", telegram_id=telegram_id, email=email)
     return web.Response(

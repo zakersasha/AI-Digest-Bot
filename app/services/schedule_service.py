@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 from app.models.platform_settings import PlatformSettings
 from app.models.user import User
-from app.services.frequency import FREQUENCY_PERIOD, delivery_hours_for_frequency
+from app.services.frequency import FREQUENCY_DAYS, FREQUENCY_PERIOD, delivery_hours_for_frequency
 
 
 def user_now(user: User) -> datetime:
@@ -51,9 +51,14 @@ def is_digest_period_elapsed(
     user: User,
     now: datetime | None = None,
 ) -> bool:
+    """
+    Whether a new scheduled digest may be sent.
+
+    Daily / multi-day frequencies use calendar delivery slots in the user's timezone
+    so a digest at 11:03 yesterday does not block today's 11:00 run.
+    """
     frequency = settings.digest_frequency or ""
-    period = FREQUENCY_PERIOD.get(frequency)
-    if not period:
+    if frequency not in FREQUENCY_PERIOD:
         return False
 
     if settings.last_digest_at is None:
@@ -66,15 +71,17 @@ def is_digest_period_elapsed(
     hour = settings.delivery_hour if settings.delivery_hour is not None else 0
     minute = settings.delivery_minute or 0
 
-    if frequency == "1d":
-        slot = _latest_slot_at_or_before(now_local, hour, minute)
-        return last_local < slot
-
     if frequency == "12h":
         slot = _latest_slot_for_12h(now_local, hour, minute)
         return last_local < slot
 
+    period_days = FREQUENCY_DAYS.get(frequency)
+    if period_days is not None:
+        slot = _latest_slot_at_or_before(now_local, hour, minute)
+        threshold = slot - timedelta(days=period_days - 1)
+        return last_local < threshold
+
+    period = FREQUENCY_PERIOD[frequency]
     now_utc = now_local.astimezone(UTC)
     last_utc = last_local.astimezone(UTC)
-    grace = timedelta(hours=2) if frequency in ("3d", "1w") else timedelta()
-    return now_utc - last_utc >= period - grace
+    return now_utc - last_utc >= period

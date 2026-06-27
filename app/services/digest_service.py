@@ -15,7 +15,7 @@ from app.repositories.linkedin_profile_repository import LinkedInProfileReposito
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.content_message import ContentMessage
-from app.services.frequency import parse_frequency
+from app.services.frequency import digest_content_since
 from app.services.gmail_service import GmailService
 from app.services.linkedin_service import LinkedInService
 from app.services.message_selection import interleave_messages_by_source
@@ -90,8 +90,7 @@ class DigestService:
         if not self._settings.telegram_session_string and not self._user_repo.has_telethon(user):
             raise ValueError(t(language, "reader_not_configured"))
 
-        delta = parse_frequency(frequency)
-        since = datetime.now(tz=UTC) - delta
+        since = digest_content_since(frequency)
         label = frequency_label(language, frequency)
 
         all_messages: list[ContentMessage] = []
@@ -133,8 +132,7 @@ class DigestService:
         if not self._gmail.is_configured():
             raise ValueError(t(language, "gmail_not_configured"))
 
-        delta = parse_frequency(frequency)
-        since = datetime.now(tz=UTC) - delta
+        since = digest_content_since(frequency)
         label = frequency_label(language, frequency)
 
         try:
@@ -146,8 +144,17 @@ class DigestService:
             await self._user_repo.update_gmail_tokens(user.id, tokens)
             await self._session.flush()
         except ValueError as exc:
-            if str(exc) == "gmail_api_disabled":
+            reason = str(exc)
+            if reason == "gmail_api_disabled":
                 raise ValueError(t(language, "gmail_api_disabled")) from exc
+            if reason == "gmail_token_expired":
+                await self._user_repo.clear_gmail(user.telegram_id)
+                await self._session.commit()
+                raise ValueError(t(language, "gmail_token_expired")) from exc
+            if reason == "gmail_token_invalid":
+                await self._user_repo.clear_gmail(user.telegram_id)
+                await self._session.commit()
+                raise ValueError(t(language, "gmail_token_invalid")) from exc
             raise ValueError(t(language, "gmail_not_linked")) from exc
         except httpx.HTTPError as exc:
             logger.error("gmail_fetch_failed", user_id=user.id, error=str(exc))
@@ -175,8 +182,7 @@ class DigestService:
         if not self._linkedin.is_configured():
             raise ValueError(t(language, "li_not_configured"))
 
-        delta = parse_frequency(frequency)
-        since = datetime.now(tz=UTC) - delta
+        since = digest_content_since(frequency)
         label = frequency_label(language, frequency)
 
         all_messages: list[ContentMessage] = []

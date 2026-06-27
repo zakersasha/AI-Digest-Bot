@@ -11,6 +11,7 @@ from app.bot.screen import edit_from_callback, open_screen
 from app.bot.states import OnboardingStates
 from app.config import get_settings
 from app.i18n import resolve_lang, t
+from app.services.digest_reschedule import reschedule_platform_digest
 from app.services.gmail_link import link_gmail_account
 from app.utils.gmail_oauth import parse_oauth_code
 from app.utils.logging import get_logger
@@ -102,6 +103,8 @@ async def msg_gmail_code(
         await message.delete()
     except Exception:
         pass
+
+    await reschedule_platform_digest(message.from_user.id, "gmail")
 
     await show_gmail_screen(
         message,

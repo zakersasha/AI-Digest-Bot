@@ -73,7 +73,12 @@ class GmailService:
 
     @staticmethod
     def decrypt_tokens(encrypted: str) -> dict:
-        return json.loads(decrypt_session(encrypted))
+        try:
+            return json.loads(decrypt_session(encrypted))
+        except ValueError as exc:
+            if "Invalid encrypted session" in str(exc):
+                raise ValueError("gmail_token_invalid") from exc
+            raise
 
     async def get_access_token(self, encrypted_tokens: str) -> tuple[str, dict]:
         tokens = self.decrypt_tokens(encrypted_tokens)
@@ -86,7 +91,12 @@ class GmailService:
         if not refresh:
             raise ValueError("gmail_token_expired")
 
-        refreshed = await self.refresh_access_token(refresh)
+        try:
+            refreshed = await self.refresh_access_token(refresh)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (400, 401):
+                raise ValueError("gmail_token_expired") from exc
+            raise
         tokens["access_token"] = refreshed["access_token"]
         tokens["expires_at"] = datetime.now(tz=UTC).timestamp() + int(refreshed.get("expires_in", 3600))
         if "refresh_token" in refreshed:
