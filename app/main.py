@@ -11,7 +11,7 @@ from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
 from app.bot.logging_middleware import LoggingMiddleware
 from app.bot.middlewares import ServicesMiddleware
-from app.config import effective_linkedin_proxy_url, effective_openai_proxy_url, effective_telethon_proxy_url, get_settings
+from app.config import effective_linkedin_proxy_url, effective_telethon_proxy_url, get_settings
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
 from app.web.gmail_oauth import start_oauth_server
@@ -77,19 +77,20 @@ async def run_bot() -> None:
         logger.warning("telethon_proxy_missing")
 
     if settings.ai_provider == "openai":
-        openai_proxy = effective_openai_proxy_url(settings)
-        if openai_proxy:
-            if settings.openai_proxy_url:
-                src = "OPENAI_PROXY_URL"
-            elif settings.bot_proxy_url:
-                src = "BOT_PROXY_URL"
-            else:
-                src = "TELEGRAM_PROXY_URL"
-            logger.info("openai_proxy_configured", source=src)
-        else:
+        from app.ai.openai_slots import build_openai_slots
+
+        openai_slots = build_openai_slots(settings)
+        logger.info("openai_slots_loaded", count=len(openai_slots))
+        for slot in openai_slots:
+            logger.info(
+                "openai_slot",
+                index=slot.index,
+                proxy_enabled=bool(slot.proxy_url),
+            )
+        if not any(s.proxy_url for s in openai_slots):
             logger.warning(
                 "openai_proxy_missing",
-                hint="Set OPENAI_PROXY_URL or TELEGRAM_PROXY_URL / BOT_PROXY_URL",
+                hint="Set OPENAI_PROXY_URL / OPENAI_PROXY_URL_2 or TELEGRAM_PROXY_URL / BOT_PROXY_URL",
             )
 
     session = create_bot_session(settings)

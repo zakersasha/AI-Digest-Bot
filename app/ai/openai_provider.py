@@ -1,8 +1,10 @@
-from openai import APIConnectionError, AsyncOpenAI
+import httpx
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI, RateLimitError
 
 from app.ai.base import AIProvider
-from app.ai.openai_urls import resolve_openai_base_url
 from app.ai.context_limits import effective_output_tokens_for_prompt, truncate_text
+from app.ai.openai_slots import OpenAISlot
+from app.ai.openai_urls import resolve_openai_base_url
 from app.ai.prompts import (
     COMBINED_DIGEST_PROMPT,
     GMAIL_DIGEST_PROMPT,
@@ -17,43 +19,88 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def _is_retryable(exc: Exception) -> bool:
+    if isinstance(exc, (APIConnectionError, APITimeoutError, RateLimitError)):
+        return True
+    if isinstance(exc, APIStatusError) and exc.status_code in _RETRYABLE_STATUS:
+        return True
+    if isinstance(exc, (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError)):
+        return True
+    return False
+
+
+def urlparse_scheme(proxy_url: str) -> str:
+    try:
+        from urllib.parse import urlparse
+
+        return urlparse(proxy_url).scheme or "unknown"
+    except Exception:
+        return "unknown"
+
+
+class _SlotClient:
+    def __init__(
+        self,
+        slot: OpenAISlot,
+        *,
+        base_url: str,
+        timeout: float,
+    ) -> None:
+        self.slot = slot
+        self._http_client = create_httpx_client(slot.proxy_url, timeout)
+        self._client = AsyncOpenAI(
+            api_key=slot.api_key,
+            base_url=base_url,
+            http_client=self._http_client,
+            max_retries=0,
+        )
+
+    async def aclose(self) -> None:
+        await self._http_client.aclose()
+
 
 class OpenAIProvider(AIProvider):
     def __init__(
         self,
-        api_key: str,
+        slots: list[OpenAISlot],
         model: str,
         base_url: str | None = None,
-        proxy_url: str | None = None,
         timeout: float = 180.0,
     ) -> None:
+        if not slots:
+            raise ValueError("At least one OpenAI slot is required")
+
         self._model = model
-        self._proxy_url = proxy_url
-        self._http_client = create_httpx_client(proxy_url, timeout)
+        self._resolved_base = resolve_openai_base_url(base_url)
+        self._timeout = timeout
+        self._slots = slots
+        self._next_start = 0
+        self._clients: dict[int, _SlotClient] = {}
 
-        resolved_base = resolve_openai_base_url(base_url)
-        client_kwargs: dict = {
-            "api_key": api_key,
-            "base_url": resolved_base,
-            "http_client": self._http_client,
-            "max_retries": 2,
-        }
-
-        logger.info("openai_client_configured", base_url=resolved_base)
-        if proxy_url:
+        for slot in slots:
             logger.info(
-                "openai_proxy_enabled",
-                proxy_host=proxy_host(proxy_url),
-                scheme=urlparse_scheme(proxy_url),
+                "openai_slot_configured",
+                slot=slot.index,
+                base_url=self._resolved_base,
+                proxy_enabled=bool(slot.proxy_url),
+                proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                scheme=urlparse_scheme(slot.proxy_url) if slot.proxy_url else None,
             )
-        else:
-            logger.warning("openai_proxy_disabled")
-
-        self._client = AsyncOpenAI(**client_kwargs)
 
     @property
     def name(self) -> str:
         return "openai"
+
+    def _get_client(self, slot: OpenAISlot) -> _SlotClient:
+        cached = self._clients.get(slot.index)
+        if cached:
+            return cached
+        client = _SlotClient(slot, base_url=self._resolved_base, timeout=self._timeout)
+        self._clients[slot.index] = client
+        return client
 
     async def complete(self, prompt: str) -> str:
         settings = get_settings()
@@ -73,32 +120,62 @@ class OpenAIProvider(AIProvider):
             "max_tokens": max_tokens,
         }
 
-        logger.info(
-            "ai_request",
-            provider=self.name,
-            model=self._model,
-            prompt_chars=len(prompt),
-            max_tokens=max_tokens,
-            context_tokens=limits.max_context_tokens,
-            proxy_enabled=bool(self._proxy_url),
-            proxy_host=proxy_host(self._proxy_url) if self._proxy_url else None,
-        )
+        last_exc: Exception | None = None
+        n = len(self._slots)
 
-        try:
-            response = await self._client.chat.completions.create(**kwargs)
-        except APIConnectionError as exc:
-            logger.error(
-                "openai_connection_failed",
-                error=str(exc),
-                cause=str(exc.__cause__) if exc.__cause__ else None,
-                proxy_enabled=bool(self._proxy_url),
-                proxy_host=proxy_host(self._proxy_url) if self._proxy_url else None,
+        for offset in range(n):
+            slot_idx = (self._next_start + offset) % n
+            slot = self._slots[slot_idx]
+            client = self._get_client(slot)
+
+            logger.info(
+                "ai_request",
+                provider=self.name,
+                model=self._model,
+                slot=slot.index,
+                prompt_chars=len(prompt),
+                max_tokens=max_tokens,
+                context_tokens=limits.max_context_tokens,
+                proxy_enabled=bool(slot.proxy_url),
+                proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
             )
-            raise
 
-        content = response.choices[0].message.content or ""
-        logger.info("ai_response", provider=self.name, chars=len(content))
-        return content.strip()
+            try:
+                response = await client._client.chat.completions.create(**kwargs)
+            except Exception as exc:
+                if not _is_retryable(exc) or offset == n - 1:
+                    logger.error(
+                        "openai_request_failed",
+                        slot=slot.index,
+                        error=str(exc),
+                        retryable=_is_retryable(exc),
+                        proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                    )
+                    raise
+                last_exc = exc
+                logger.warning(
+                    "openai_slot_failed",
+                    slot=slot.index,
+                    error=str(exc),
+                    next_slot=self._slots[(slot_idx + 1) % n].index,
+                    proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                )
+                continue
+
+            self._next_start = (slot_idx + 1) % n
+            content = response.choices[0].message.content or ""
+            logger.info(
+                "ai_response",
+                provider=self.name,
+                slot=slot.index,
+                chars=len(content),
+                next_slot=self._next_start,
+            )
+            return content.strip()
+
+        if last_exc:
+            raise last_exc
+        return ""
 
     async def generate_digest(
         self,
@@ -126,13 +203,6 @@ class OpenAIProvider(AIProvider):
         return await self.complete(prompt)
 
     async def aclose(self) -> None:
-        await self._http_client.aclose()
-
-
-def urlparse_scheme(proxy_url: str) -> str:
-    try:
-        from urllib.parse import urlparse
-
-        return urlparse(proxy_url).scheme or "unknown"
-    except Exception:
-        return "unknown"
+        for client in self._clients.values():
+            await client.aclose()
+        self._clients.clear()

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     local_ai_model: str = Field(default="openai/gpt-oss-20b", alias="LOCAL_AI_MODEL")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    openai_api_key_2: str | None = Field(default=None, alias="OPENAI_API_KEY_2")
     openai_model: str = Field(
         default="gpt-4o-mini",
         alias="OPENAI_MODEL",
@@ -42,6 +43,7 @@ class Settings(BaseSettings):
     )
     openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
     openai_proxy_url: str | None = Field(default=None, alias="OPENAI_PROXY_URL")
+    openai_proxy_url_2: str | None = Field(default=None, alias="OPENAI_PROXY_URL_2")
 
     gmail_client_id: str = Field(default="", alias="GMAIL_CLIENT_ID")
     gmail_client_secret: str = Field(default="", alias="GMAIL_CLIENT_SECRET")
@@ -97,6 +99,8 @@ class Settings(BaseSettings):
     @field_validator(
         "openai_base_url",
         "openai_proxy_url",
+        "openai_proxy_url_2",
+        "openai_api_key_2",
         "bot_proxy_url",
         "telegram_proxy_url",
         "gmail_client_id",
