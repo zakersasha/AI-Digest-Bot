@@ -8,6 +8,8 @@ class OnboardingStates(StatesGroup):
     waiting_add_source = State()
     connecting_gmail = State()
     waiting_gmail_code = State()
+    connecting_slack = State()
+    waiting_slack_code = State()
     waiting_telegram_qr = State()
     waiting_telegram_2fa = State()
     connecting_linkedin = State()

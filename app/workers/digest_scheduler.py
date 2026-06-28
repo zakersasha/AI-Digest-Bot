@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 _NO_PREVIEW = LinkPreviewOptions(is_disabled=True)
 _JOB_PREFIX = "digest"
-_PLATFORM_MINUTE_OFFSET = {"telegram": 0, "gmail": 2, "linkedin": 4}
+_PLATFORM_MINUTE_OFFSET = {"telegram": 0, "gmail": 2, "slack": 4, "linkedin": 6}
 _user_delivery_locks: dict[int, asyncio.Lock] = {}
 
 

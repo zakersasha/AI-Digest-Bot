@@ -112,8 +112,10 @@ async def run_bot() -> None:
     await digest_scheduler.start()
 
     oauth_runner = None
-    oauth_enabled = (settings.gmail_client_id and settings.gmail_client_secret) or (
-        settings.linkedin_client_id and settings.linkedin_client_secret
+    oauth_enabled = (
+        (settings.gmail_client_id and settings.gmail_client_secret)
+        or (settings.slack_client_id and settings.slack_client_secret)
+        or (settings.linkedin_client_id and settings.linkedin_client_secret)
     )
     if oauth_enabled:
         bot_username = settings.bot_username.strip().lstrip("@")
@@ -148,6 +150,12 @@ async def run_bot() -> None:
                 logger.info("linkedin_proxy_configured")
             else:
                 logger.warning("linkedin_proxy_missing")
+        if settings.slack_client_id and settings.slack_client_secret:
+            logger.info(
+                "slack_oauth_enabled",
+                redirect_uri=settings.slack_redirect_uri,
+                bot_username=bot_username,
+            )
     else:
         logger.info("oauth_server_disabled")
 

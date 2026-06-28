@@ -11,10 +11,15 @@ from app.bot.keyboards import (
     CB_GMAIL_DISCONNECT,
     CB_GMAIL_PASTE,
     CB_PLATFORM_GMAIL,
+    CB_PLATFORM_SLACK,
     CB_LI_ADD_LINKS,
     CB_LI_DISCONNECT,
     CB_LI_PICK,
     CB_LI_PROFILES,
+    CB_SLACK_CHANNELS,
+    CB_SLACK_DISCONNECT,
+    CB_SLACK_PASTE,
+    CB_SLACK_PICK,
     CB_PLATFORM_LINKEDIN,
     CB_PLATFORM_TELEGRAM,
     CB_SCHEDULE_PREFIX,
@@ -47,10 +52,12 @@ from app.i18n import t
 from app.platforms.registry import PLATFORMS, available_platforms, get_platform
 from app.repositories.linkedin_profile_repository import LinkedInProfileRepository
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
+from app.repositories.slack_channel_repository import SlackChannelRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.gmail_service import GmailService
 from app.services.linkedin_service import LinkedInService
+from app.services.slack_service import SlackService
 from app.services.platform_readiness import is_platform_scheduled
 from app.bot.inline_channels import warm_channel_cache
 from app.web.gmail_oauth import create_oauth_state
@@ -112,6 +119,23 @@ async def _platform_status_line(
             conn = t(lang, "platform_not_connected")
         return f"{conn} · {schedule}"
 
+    if platform_id == "slack":
+        user_repo = UserRepository(session)
+        count = await SlackChannelRepository(session).count_active(user.id)
+        if user_repo.has_slack(user):
+            if count:
+                conn = t(
+                    lang,
+                    "platform_status_slack_channels",
+                    team=user.slack_team_name or "Slack",
+                    count=str(count),
+                )
+            else:
+                conn = t(lang, "platform_status_slack", team=user.slack_team_name or "Slack")
+        else:
+            conn = t(lang, "platform_not_connected")
+        return f"{conn} · {schedule}"
+
     if platform_id == "linkedin":
         user_repo = UserRepository(session)
         count = await LinkedInProfileRepository(session).count_active(user.id)
@@ -157,27 +181,17 @@ async def show_platforms_menu(
         lines = [t(lang, "platforms_menu")]
     rows: list[list[InlineKeyboardButton]] = []
 
-    for pdef in PLATFORMS:
+    for pdef in available_platforms():
         status = await _platform_status_line(session, user, lang, pdef.id)
         lines.append(f"{pdef.emoji} <b>{t(lang, pdef.label_key)}</b> — {status}")
-        if pdef.available:
-            cb = {
-                "telegram": CB_PLATFORM_TELEGRAM,
-                "gmail": CB_PLATFORM_GMAIL,
-                "linkedin": CB_PLATFORM_LINKEDIN,
-            }.get(pdef.id, f"plat:{pdef.id}")
-            rows.append(
-                [InlineKeyboardButton(text=f"{pdef.emoji} {t(lang, pdef.label_key)}", callback_data=cb)]
-            )
-        else:
-            rows.append(
-                [
-                    InlineKeyboardButton(
-                        text=f"{pdef.emoji} {t(lang, pdef.label_key)} ({t(lang, 'soon')})",
-                        callback_data=CB_PLATFORM_LINKEDIN,
-                    )
-                ]
-            )
+        cb = {
+            "telegram": CB_PLATFORM_TELEGRAM,
+            "gmail": CB_PLATFORM_GMAIL,
+            "slack": CB_PLATFORM_SLACK,
+        }.get(pdef.id, f"plat:{pdef.id}")
+        rows.append(
+            [InlineKeyboardButton(text=f"{pdef.emoji} {t(lang, pdef.label_key)}", callback_data=cb)]
+        )
 
     text = "\n\n".join(lines)
     markup = InlineKeyboardMarkup(inline_keyboard=rows)
@@ -589,6 +603,89 @@ def _format_gmail_status(user, lang: str) -> str:
     if user.gmail_tokens_encrypted:
         return t(lang, "gmail_status_linked", email=user.gmail_email or "Gmail")
     return t(lang, "gmail_status_not_linked")
+
+
+def _slack_keyboard(lang: str, telegram_id: int, user, linked: bool, channel_count: int) -> InlineKeyboardMarkup:
+    settings = get_settings()
+    slack = SlackService(settings)
+    rows: list[list[InlineKeyboardButton]] = []
+
+    if not linked and slack.is_configured():
+        auth_url = slack.build_auth_url(create_oauth_state(telegram_id))
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_slack_connect"), url=auth_url)])
+        if settings.slack_redirect_is_localhost():
+            rows.append(
+                [
+                    InlineKeyboardButton(text=t(lang, "btn_slack_paste"), callback_data=CB_SLACK_PASTE),
+                ]
+            )
+    elif linked:
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_slack_disconnect"), callback_data=CB_SLACK_DISCONNECT)]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=t(lang, "btn_slack_channels", count=str(channel_count)),
+                    callback_data=CB_SLACK_CHANNELS,
+                )
+            ]
+        )
+        if channel_count > 0:
+            rows.append(
+                [InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}slack")]
+            )
+            rows.append(
+                [InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}slack")]
+            )
+
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_ACTION_MENU)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def show_slack_screen(
+    target: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    lang: str,
+    telegram_id: int,
+    *,
+    status_line: str | None = None,
+    from_user_action: bool = False,
+) -> None:
+    user = await UserRepository(session).get_by_telegram_id(telegram_id)
+    if not user:
+        return
+    await session.refresh(user)
+
+    linked = UserRepository(session).has_slack(user)
+    channel_count = await SlackChannelRepository(session).count_active(user.id)
+    settings = await PlatformSettingsRepository(session).get(user.id, "slack")
+    text = f"<b>{t(lang, 'platform_slack')}</b>\n\n{t(lang, 'slack_screen_hint')}\n\n"
+    if linked:
+        text += t(lang, "slack_status_linked", team=user.slack_team_name or "Slack")
+        if channel_count:
+            text += f"\n{t(lang, 'slack_channels_summary', count=str(channel_count))}"
+        else:
+            text += f"\n{t(lang, 'slack_no_channels_yet')}"
+        text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
+    else:
+        text += t(lang, "slack_status_not_linked")
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    await state.set_state(OnboardingStates.connecting_slack)
+    await state.update_data(active_platform="slack")
+    markup = _slack_keyboard(lang, telegram_id, user, linked, channel_count)
+    data = await state.get_data()
+    if from_user_action:
+        await _delete_screen(target.bot, state)
+        await bind_screen(state, target)
+        await edit_screen(target, state, text, markup)
+    elif data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(target.bot, state, text, markup)
+    else:
+        await replace_screen(target, state, text, markup)
 
 
 def _linkedin_keyboard(lang: str, telegram_id: int, user, linked: bool, profile_count: int) -> InlineKeyboardMarkup:

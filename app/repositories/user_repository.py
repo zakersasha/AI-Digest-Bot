@@ -148,6 +148,36 @@ class UserRepository:
     def has_gmail(self, user: User) -> bool:
         return bool(user.gmail_tokens_encrypted)
 
+    async def save_slack_tokens(
+        self,
+        telegram_id: int,
+        tokens: dict,
+        team_name: str,
+    ) -> User | None:
+        from app.services.slack_service import SlackService
+
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.slack_tokens_encrypted = SlackService.encrypt_tokens(tokens)
+        user.slack_team_name = team_name
+        user.slack_linked_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return user
+
+    async def clear_slack(self, telegram_id: int) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.slack_tokens_encrypted = None
+        user.slack_team_name = None
+        user.slack_linked_at = None
+        await self._session.flush()
+        return user
+
+    def has_slack(self, user: User) -> bool:
+        return bool(user.slack_tokens_encrypted)
+
     async def save_linkedin_tokens(
         self,
         telegram_id: int,

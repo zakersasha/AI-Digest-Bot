@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.models.digest import Digest
     from app.models.linkedin_profile import LinkedInProfile
     from app.models.platform_settings import PlatformSettings
+    from app.models.slack_channel import SlackChannel
     from app.models.source import Source
 
 
@@ -37,6 +38,9 @@ class User(Base):
     linkedin_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     linkedin_member_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     linkedin_linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    slack_tokens_encrypted: Mapped[str | None] = mapped_column(nullable=True)
+    slack_team_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    slack_linked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -48,6 +52,10 @@ class User(Base):
         cascade="all, delete-orphan",
     )
     linkedin_profiles: Mapped[list["LinkedInProfile"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    slack_channels: Mapped[list["SlackChannel"]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

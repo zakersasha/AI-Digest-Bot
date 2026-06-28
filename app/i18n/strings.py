@@ -237,6 +237,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "platform_telegram": "Telegram",
         "platform_gmail": "Gmail",
+        "platform_slack": "Slack",
         "menu_platform": "📱 Платформа",
         "menu_gmail": "📧 Gmail",
         "gmail_connect": (
@@ -286,6 +287,44 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_header_gmail": "🔥 *Твой email-дайджест {period}*",
         "digest_progress_fetch_gmail": "📡 Загружаю Gmail <b>{label}</b>{dots}",
         "digest_progress_read_gmail": "📥 Читаю письма <b>{label}</b>{dots}",
+        "slack_screen_hint": "Подключите Slack и выберите каналы для дайджеста.",
+        "slack_status_linked": "✅ Workspace: <b>{team}</b>",
+        "slack_status_not_linked": "<i>Slack не подключён</i>",
+        "platform_status_slack": "✅ {team}",
+        "platform_status_slack_channels": "✅ {team} · {count} кан.",
+        "slack_oauth_done_notify": (
+            "✅ <b>Slack подключён</b>: {team}\n\n"
+            "Нажмите «Продолжить» и выберите каналы."
+        ),
+        "slack_paste_prompt": (
+            "Вставьте <b>полную ссылку</b> из адресной строки после авторизации Slack.\n\n"
+            "Пример:\n"
+            "<code>http://localhost:8080/oauth/slack/callback?state=...&code=...</code>"
+        ),
+        "slack_code_invalid": "❌ Не удалось извлечь код. Вставьте полную ссылку из браузера.",
+        "slack_link_failed": "❌ Не удалось подключить Slack. Авторизуйтесь заново.",
+        "slack_linked": "✅ Slack подключён: <b>{team}</b>",
+        "slack_not_linked": "❌ Сначала подключите Slack.",
+        "slack_token_expired": "❌ Доступ к Slack истёк. Подключите Slack заново в боте.",
+        "slack_token_invalid": "❌ Не удалось расшифровать Slack. Подключите заново.",
+        "slack_not_configured": "❌ Slack OAuth не настроен (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).",
+        "slack_disconnected": "Slack отключён.",
+        "btn_slack_connect": "🔗 Подключить Slack",
+        "btn_slack_disconnect": "🔌 Отключить Slack",
+        "btn_slack_continue": "✅ Продолжить",
+        "btn_slack_paste": "📋 Вставить ссылку",
+        "btn_slack_channels": "📋 Каналы ({count})",
+        "btn_slack_pick_done": "✅ Готово",
+        "slack_picker_hint": "Выберите каналы для дайджеста ({count} доступно):",
+        "slack_picker_empty": "ℹ️ Каналы не найдены. Проверьте права Slack-приложения.",
+        "slack_channels_saved": "✅ Каналы сохранены",
+        "slack_channels_summary": "Каналов в дайджесте: <b>{count}</b>",
+        "slack_no_channels_yet": "Каналы не выбраны — откройте «Каналы».",
+        "no_slack_channels": "❌ Выберите хотя бы один канал Slack.",
+        "no_slack_messages": "ℹ️ За период «{label}» сообщений в Slack нет.",
+        "digest_header_slack": "🔥 *Твой Slack-дайджест {period}*",
+        "digest_progress_fetch_slack": "📡 Загружаю Slack <b>{label}</b>{dots}",
+        "digest_progress_read_slack": "📥 Читаю сообщения Slack <b>{label}</b>{dots}",
         "setup_done_gmail": (
             "✅ <b>Готово!</b>\n\n"
             "📧 Gmail: <b>{email}</b>\n"
@@ -344,7 +383,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_header_linkedin": "🔥 *Твой LinkedIn-дайджест {period}*",
         "digest_progress_fetch_linkedin": "📡 Загружаю LinkedIn <b>{label}</b>{dots}",
         "digest_progress_read_linkedin": "📥 Читаю посты <b>{label}</b>{dots}",
-        "pick_source_first": "❌ Настройте источник: каналы, Gmail или LinkedIn.",
+        "pick_source_first": "❌ Настройте источник: каналы, Gmail или Slack.",
     },
     "en": {
         "flow_step_prefix": "<b>Step {step}/{total}</b>",
@@ -584,6 +623,7 @@ STRINGS: dict[str, dict[str, str]] = {
         ),
         "platform_telegram": "Telegram",
         "platform_gmail": "Gmail",
+        "platform_slack": "Slack",
         "menu_platform": "📱 Platform",
         "menu_gmail": "📧 Gmail",
         "gmail_connect": (
@@ -633,6 +673,44 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_header_gmail": "🔥 *Your email digest {period}*",
         "digest_progress_fetch_gmail": "📡 Loading Gmail <b>{label}</b>{dots}",
         "digest_progress_read_gmail": "📥 Reading emails <b>{label}</b>{dots}",
+        "slack_screen_hint": "Connect Slack and pick channels for your digest.",
+        "slack_status_linked": "✅ Workspace: <b>{team}</b>",
+        "slack_status_not_linked": "<i>Slack not connected</i>",
+        "platform_status_slack": "✅ {team}",
+        "platform_status_slack_channels": "✅ {team} · {count} ch.",
+        "slack_oauth_done_notify": (
+            "✅ <b>Slack connected</b>: {team}\n\n"
+            "Tap Continue and pick channels."
+        ),
+        "slack_paste_prompt": (
+            "Send the <b>full URL</b> from your browser after Slack authorization.\n\n"
+            "Example:\n"
+            "<code>http://localhost:8080/oauth/slack/callback?state=...&code=...</code>"
+        ),
+        "slack_code_invalid": "❌ No code found. Paste the full browser URL.",
+        "slack_link_failed": "❌ Failed to connect Slack. Please authorize again.",
+        "slack_linked": "✅ Slack connected: <b>{team}</b>",
+        "slack_not_linked": "❌ Connect Slack first.",
+        "slack_token_expired": "❌ Slack access expired. Reconnect Slack in the bot.",
+        "slack_token_invalid": "❌ Could not decrypt Slack tokens. Reconnect in the bot.",
+        "slack_not_configured": "❌ Slack OAuth is not configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET).",
+        "slack_disconnected": "Slack disconnected.",
+        "btn_slack_connect": "🔗 Connect Slack",
+        "btn_slack_disconnect": "🔌 Disconnect Slack",
+        "btn_slack_continue": "✅ Continue",
+        "btn_slack_paste": "📋 Paste link",
+        "btn_slack_channels": "📋 Channels ({count})",
+        "btn_slack_pick_done": "✅ Done",
+        "slack_picker_hint": "Pick channels for the digest ({count} available):",
+        "slack_picker_empty": "ℹ️ No channels found. Check your Slack app scopes.",
+        "slack_channels_saved": "✅ Channels saved",
+        "slack_channels_summary": "Channels in digest: <b>{count}</b>",
+        "slack_no_channels_yet": "No channels selected — open «Channels».",
+        "no_slack_channels": "❌ Select at least one Slack channel.",
+        "no_slack_messages": "ℹ️ No Slack messages for «{label}».",
+        "digest_header_slack": "🔥 *Your Slack digest {period}*",
+        "digest_progress_fetch_slack": "📡 Loading Slack <b>{label}</b>{dots}",
+        "digest_progress_read_slack": "📥 Reading Slack messages <b>{label}</b>{dots}",
         "setup_done_gmail": (
             "✅ <b>All set!</b>\n\n"
             "📧 Gmail: <b>{email}</b>\n"
@@ -691,6 +769,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_header_linkedin": "🔥 *Your LinkedIn digest {period}*",
         "digest_progress_fetch_linkedin": "📡 Loading LinkedIn <b>{label}</b>{dots}",
         "digest_progress_read_linkedin": "📥 Reading posts <b>{label}</b>{dots}",
-        "pick_source_first": "❌ Set up a source first: channels, Gmail, or LinkedIn.",
+        "pick_source_first": "❌ Set up a source first: channels, Gmail, or Slack.",
     },
 }

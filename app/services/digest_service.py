@@ -12,12 +12,14 @@ from app.models.user import User
 from app.repositories.digest_repository import DigestRepository
 from app.repositories.platform_settings_repository import PlatformSettingsRepository
 from app.repositories.linkedin_profile_repository import LinkedInProfileRepository
+from app.repositories.slack_channel_repository import SlackChannelRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.content_message import ContentMessage
 from app.services.frequency import digest_content_since
 from app.services.gmail_service import GmailService
 from app.services.linkedin_service import LinkedInService
+from app.services.slack_service import SlackService
 from app.services.message_selection import interleave_messages_by_source, select_balanced_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import telethon_for_digest
@@ -43,8 +45,10 @@ class DigestService:
         self._user_repo = UserRepository(session)
         self._platform_repo = PlatformSettingsRepository(session)
         self._gmail = GmailService(settings)
+        self._slack = SlackService(settings)
         self._linkedin = LinkedInService(settings)
         self._linkedin_repo = LinkedInProfileRepository(session)
+        self._slack_repo = SlackChannelRepository(session)
 
     async def generate_for_platform(
         self,
@@ -61,8 +65,10 @@ class DigestService:
             return await self._generate_telegram_digest(user, frequency, language)
         if platform == "gmail":
             return await self._generate_gmail_digest(user, frequency, language)
+        if platform == "slack":
+            return await self._generate_slack_digest(user, frequency, language)
         if platform == "linkedin":
-            return await self._generate_linkedin_digest(user, frequency, language)
+            raise ValueError(t(language, "platform_coming_soon"))
         raise ValueError(t(language, "platform_unavailable"))
 
     async def generate_scheduled(
@@ -171,6 +177,68 @@ class DigestService:
             messages,
         )
 
+    async def _generate_slack_digest(self, user: User, frequency: str, language: str) -> str:
+        if not self._user_repo.has_slack(user):
+            raise ValueError(t(language, "slack_not_linked"))
+
+        channels = await self._slack_repo.list_active_for_user(user.id)
+        if not channels:
+            raise ValueError(t(language, "no_slack_channels"))
+
+        if not self._slack.is_configured():
+            raise ValueError(t(language, "slack_not_configured"))
+
+        since = digest_content_since(frequency)
+        label = frequency_label(language, frequency)
+        all_messages: list[ContentMessage] = []
+
+        for channel in channels:
+            try:
+                messages = await self._slack.fetch_messages(
+                    user.slack_tokens_encrypted,
+                    channel.channel_id,
+                    channel.channel_name,
+                    since,
+                    self._settings.slack_max_messages,
+                )
+                all_messages.extend(messages)
+            except ValueError as exc:
+                reason = str(exc)
+                if reason == "slack_token_expired":
+                    await self._user_repo.clear_slack(user.telegram_id)
+                    await self._session.commit()
+                    raise ValueError(t(language, "slack_token_expired")) from exc
+                if reason == "slack_token_invalid":
+                    await self._user_repo.clear_slack(user.telegram_id)
+                    await self._session.commit()
+                    raise ValueError(t(language, "slack_token_invalid")) from exc
+                logger.warning(
+                    "slack_channel_fetch_failed",
+                    channel=channel.channel_name,
+                    error=reason,
+                )
+            except httpx.HTTPError as exc:
+                logger.error(
+                    "slack_fetch_failed",
+                    user_id=user.id,
+                    channel=channel.channel_name,
+                    error=str(exc),
+                )
+
+        if not all_messages:
+            raise ValueError(t(language, "no_slack_messages", label=label))
+
+        channel_titles = {f"slack:#{c.channel_name}": f"#{c.channel_name}" for c in channels}
+
+        return await self._build_digest(
+            user.id,
+            "slack",
+            frequency,
+            language,
+            all_messages,
+            channel_titles=channel_titles,
+        )
+
     async def _generate_linkedin_digest(self, user: User, frequency: str, language: str) -> str:
         profiles = await self._linkedin_repo.list_active_for_user(user.id)
         if not profiles:
@@ -267,6 +335,8 @@ class DigestService:
         limits = self._settings.digest_ai_limits()
         if platform == "telegram":
             selected = select_balanced_messages_by_source(all_messages, limits.max_messages)
+        elif platform == "slack":
+            selected = select_balanced_messages_by_source(all_messages, limits.max_messages)
         else:
             selected = interleave_messages_by_source(all_messages, limits.max_messages)
         if len(selected) < len(all_messages):
@@ -287,6 +357,13 @@ class DigestService:
             elif msg.source.startswith("linkedin:"):
                 source_label = msg.source.removeprefix("linkedin:")
                 items.append((source_label, msg.post_url, msg.text))
+            elif msg.source.startswith("slack:"):
+                label = (
+                    channel_titles.get(msg.source, msg.source.removeprefix("slack:"))
+                    if channel_titles
+                    else msg.source.removeprefix("slack:")
+                )
+                items.append((label, msg.post_url, msg.text))
             else:
                 username = channel_username(msg.source)
                 label = (
@@ -304,7 +381,7 @@ class DigestService:
             per_message_max_chars=limits.message_max_chars,
             min_message_chars=limits.min_message_chars,
         )
-        if platform == "telegram" and len({msg.source for msg in selected}) > 1:
+        if platform in ("telegram", "slack") and len({msg.source for msg in selected}) > 1:
             blocks = pack_messages_for_digest_by_source(items, **pack_kwargs)
         else:
             blocks = pack_messages_for_digest(items, **pack_kwargs)

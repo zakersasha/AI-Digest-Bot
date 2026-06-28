@@ -6,6 +6,7 @@ from app.ai.prompts import (
     COMBINED_DIGEST_PROMPT,
     GMAIL_DIGEST_PROMPT,
     LINKEDIN_DIGEST_PROMPT,
+    SLACK_DIGEST_PROMPT,
     TELEGRAM_DIGEST_PROMPT,
 )
 from app.ai.response import completion_finish_reason, extract_chat_content
@@ -127,6 +128,7 @@ class LocalAIProvider(AIProvider):
         templates = {
             "gmail": GMAIL_DIGEST_PROMPT,
             "linkedin": LINKEDIN_DIGEST_PROMPT,
+            "slack": SLACK_DIGEST_PROMPT,
             "telegram": TELEGRAM_DIGEST_PROMPT,
             "combined": COMBINED_DIGEST_PROMPT,
         }

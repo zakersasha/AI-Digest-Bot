@@ -35,6 +35,9 @@ _USER_MIGRATIONS = (
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_name VARCHAR(255)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_member_id VARCHAR(64)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS linkedin_linked_at TIMESTAMPTZ",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS slack_tokens_encrypted TEXT",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS slack_team_name VARCHAR(255)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS slack_linked_at TIMESTAMPTZ",
 )
 
 _PLATFORM_SETTINGS_DDL = """

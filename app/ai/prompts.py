@@ -43,6 +43,21 @@ TELEGRAM_DIGEST_PROMPT = (
     "{messages}"
 )
 
+SLACK_DIGEST_PROMPT = (
+    "Create a digest from Slack channel messages.\n\n"
+    "Write in {language_name} only.\n"
+    f"{_SKIP_RULES.strip()}\n"
+    f"{_SELECTION_RULES.strip()}\n"
+    f"{_TELEGRAM_MULTI_CHANNEL_RULES.strip()}\n"
+    f"{_LINK_RULES.strip()}\n\n"
+    "Each item MUST start with the channel name in bold markdown: **#channel** — then the summary.\n"
+    "Use the exact SOURCE name from each post block.\n\n"
+    "Example item:\n"
+    "1. **#general** — Team agreed to ship v2 on Monday. [{link_label}](https://slack.com/archives/C123/p123)\n\n"
+    "Messages:\n"
+    "{messages}"
+)
+
 GMAIL_DIGEST_PROMPT = (
     "Create a digest from Gmail inbox emails.\n\n"
     "Write in {language_name} only.\n"

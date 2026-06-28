@@ -7,6 +7,7 @@ from app.ai.prompts import (
     COMBINED_DIGEST_PROMPT,
     GMAIL_DIGEST_PROMPT,
     LINKEDIN_DIGEST_PROMPT,
+    SLACK_DIGEST_PROMPT,
     TELEGRAM_DIGEST_PROMPT,
 )
 from app.config import get_settings
@@ -112,6 +113,7 @@ class OpenAIProvider(AIProvider):
         templates = {
             "gmail": GMAIL_DIGEST_PROMPT,
             "linkedin": LINKEDIN_DIGEST_PROMPT,
+            "slack": SLACK_DIGEST_PROMPT,
             "telegram": TELEGRAM_DIGEST_PROMPT,
             "combined": COMBINED_DIGEST_PROMPT,
         }
