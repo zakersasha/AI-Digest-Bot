@@ -60,7 +60,7 @@ from app.services.linkedin_service import LinkedInService
 from app.services.slack_service import SlackService
 from app.services.platform_readiness import is_platform_scheduled
 from app.bot.inline_channels import warm_channel_cache
-from app.web.gmail_oauth import create_oauth_state
+from app.utils.oauth_state import create_oauth_state
 
 
 def _tg_inline_pick_button(lang: str) -> InlineKeyboardButton:

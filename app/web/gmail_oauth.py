@@ -17,12 +17,6 @@ from app.web.slack_oauth import slack_oauth_callback
 logger = get_logger(__name__)
 
 
-def create_oauth_state(telegram_id: int) -> str:
-    settings = get_settings()
-    secret = settings.session_encryption_key or settings.bot_token
-    return create_signed_oauth_state(telegram_id, secret)
-
-
 def _success_html(email: str, *, bot_username: str | None, lang: str) -> str:
     tg_link = f"https://t.me/{bot_username}" if bot_username else None
     if lang == "ru":

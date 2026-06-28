@@ -16,7 +16,7 @@ from app.config import get_settings
 from app.i18n import t
 from app.repositories.user_repository import UserRepository
 from app.services.gmail_service import GmailService
-from app.web.gmail_oauth import create_oauth_state
+from app.utils.oauth_state import create_oauth_state
 
 
 def platform_label(lang: str, platform: str) -> str:

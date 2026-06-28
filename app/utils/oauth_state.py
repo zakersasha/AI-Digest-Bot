@@ -38,3 +38,11 @@ def verify_signed_oauth_state(state: str, secret: str) -> int | None:
         return telegram_id
     except (ValueError, KeyError, json.JSONDecodeError):
         return None
+
+
+def create_oauth_state(telegram_id: int) -> str:
+    from app.config import get_settings
+
+    settings = get_settings()
+    secret = settings.session_encryption_key or settings.bot_token
+    return create_signed_oauth_state(telegram_id, secret)

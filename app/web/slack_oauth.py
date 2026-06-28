@@ -8,7 +8,6 @@ from app.services.digest_reschedule import reschedule_platform_digest
 from app.services.slack_link import link_slack_account
 from app.utils.logging import get_logger
 from app.utils.oauth_state import verify_signed_oauth_state
-from app.web.gmail_oauth import create_oauth_state
 
 logger = get_logger(__name__)
 
@@ -105,4 +104,4 @@ async def slack_oauth_callback(request: web.Request) -> web.Response:
     )
 
 
-__all__ = ["slack_oauth_callback", "create_oauth_state"]
+__all__ = ["slack_oauth_callback"]
