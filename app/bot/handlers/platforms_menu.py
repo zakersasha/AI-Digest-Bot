@@ -102,7 +102,16 @@ async def cb_open_gmail(callback: CallbackQuery, session: AsyncSession, state: F
 @router.callback_query(F.data == CB_PLATFORM_LINKEDIN)
 async def cb_open_linkedin(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
-    await callback.answer(t(lang, "platform_coming_soon"), show_alert=True)
+    await callback.answer()
+    if callback.message:
+        await show_linkedin_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            from_user_action=True,
+        )
 
 
 @router.callback_query(F.data.in_({CB_PLATFORM_SLACK, CB_SLACK_CONTINUE}))

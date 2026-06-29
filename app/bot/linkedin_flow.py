@@ -7,10 +7,11 @@ from app.bot.platform_screens import show_linkedin_profiles_screen, show_linkedi
 from app.bot.screen import edit_from_callback
 from app.bot.states import OnboardingStates
 from app.i18n import t
-from app.config import effective_linkedin_proxy_url, get_settings
+from app.config import get_settings
 from app.repositories.linkedin_profile_repository import LinkedInProfileRepository
 from app.repositories.user_repository import UserRepository
 from app.services.linkedin_public import resolve_profile_from_activity_url
+from app.services.linkedin_service import LinkedInService
 from app.utils.linkedin_links import ParsedLinkedInProfile, normalize_linkedin_profile, parse_linkedin_profiles
 
 
@@ -55,7 +56,7 @@ async def process_profile_links(
 
     repo = LinkedInProfileRepository(session)
     settings = get_settings()
-    proxy_url = effective_linkedin_proxy_url(settings)
+    router = LinkedInService(settings).router
     new_count = 0
     dup_count = 0
     for link in links:
@@ -65,7 +66,7 @@ async def process_profile_links(
             continue
 
         if parsed.slug.startswith("activity-"):
-            author_slug, urn = await resolve_profile_from_activity_url(parsed.url, proxy_url=proxy_url)
+            author_slug, urn = await resolve_profile_from_activity_url(parsed.url, router=router)
             if author_slug:
                 parsed = ParsedLinkedInProfile(
                     slug=author_slug,

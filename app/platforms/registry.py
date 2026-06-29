@@ -13,7 +13,7 @@ PLATFORMS: tuple[PlatformDef, ...] = (
     PlatformDef("telegram", "platform_telegram", "📱"),
     PlatformDef("gmail", "platform_gmail", "📧"),
     PlatformDef("slack", "platform_slack", "💬"),
-    PlatformDef("linkedin", "platform_linkedin", "💼", available=False),
+    PlatformDef("linkedin", "platform_linkedin", "💼"),
 )
 
 

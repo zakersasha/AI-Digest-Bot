@@ -7,18 +7,10 @@ import httpx
 
 from app.models.linkedin_profile import LinkedInProfile
 from app.services.content_message import ContentMessage
-from app.utils.http_proxy import create_httpx_client
+from app.utils.linkedin_http import LinkedInHttpRouter
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-_BROWSER_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "en-US,en;q=0.9",
-}
 
 _ACTIVITY_PATTERNS = (
     re.compile(r"urn:li:activity:(\d+)", re.I),
@@ -114,10 +106,11 @@ def _extract_relative_time(html: str) -> str | None:
 async def fetch_embed_post(
     client: httpx.AsyncClient,
     activity_id: str,
+    headers: dict[str, str],
 ) -> tuple[str, str, str | None, str | None]:
     url = f"https://www.linkedin.com/embed/feed/update/urn:li:activity:{activity_id}"
     try:
-        response = await client.get(url, headers=_BROWSER_HEADERS)
+        response = await client.get(url, headers=headers)
     except httpx.HTTPError as exc:
         logger.warning("linkedin_embed_failed", activity_id=activity_id, error=str(exc))
         return "", "", None, None
@@ -192,6 +185,7 @@ async def _probe_forward_posts(
     slug: str,
     seed_id: str,
     since: datetime,
+    headers: dict[str, str],
     *,
     max_checks: int = 24,
 ) -> list[tuple[str, str, str | None, str]]:
@@ -204,7 +198,7 @@ async def _probe_forward_posts(
     step = 400
     for i in range(max_checks):
         activity_id = str(base + (i + 1) * step)
-        text, post_url, relative, author_slug = await fetch_embed_post(client, activity_id)
+        text, post_url, relative, author_slug = await fetch_embed_post(client, activity_id, headers)
         if not text:
             continue
         if author_slug and author_slug != slug.lower():
@@ -215,23 +209,80 @@ async def _probe_forward_posts(
     return found
 
 
+async def scrape_profile_activity_ids(
+    client: httpx.AsyncClient,
+    slug: str,
+    headers: dict[str, str],
+    *,
+    max_ids: int,
+) -> list[str]:
+    """Extract activity IDs from public profile / recent-activity HTML pages."""
+    templates = (
+        "https://www.linkedin.com/in/{slug}/recent-activity/all/",
+        "https://www.linkedin.com/in/{slug}/recent-activity/shares/",
+        "https://www.linkedin.com/mwlite/in/{slug}/recent-activity/all",
+        "https://www.linkedin.com/in/{slug}/",
+    )
+    found: list[str] = []
+    seen: set[str] = set()
+
+    for template in templates:
+        url = template.format(slug=slug)
+        try:
+            response = await client.get(url, headers=headers)
+        except httpx.HTTPError as exc:
+            logger.warning("linkedin_profile_scrape_failed", url=url, error=str(exc))
+            continue
+        if response.status_code != 200:
+            logger.info(
+                "linkedin_profile_scrape_skip",
+                url=url,
+                status=response.status_code,
+            )
+            continue
+        for activity_id in extract_activity_ids(response.text):
+            if activity_id in seen:
+                continue
+            seen.add(activity_id)
+            found.append(activity_id)
+            if len(found) >= max_ids:
+                return found[:max_ids]
+
+    logger.info("linkedin_profile_scrape_discovered", slug=slug, count=len(found))
+    return found[:max_ids]
+
+
 async def _search_activity_ids(
     client: httpx.AsyncClient,
     slug: str,
     profile_type: str,
+    headers: dict[str, str],
     *,
     max_ids: int,
     google_cse_api_key: str | None = None,
     google_cse_cx: str | None = None,
 ) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+
+    if profile_type == "person":
+        for activity_id in await scrape_profile_activity_ids(client, slug, headers, max_ids=max_ids):
+            if activity_id in seen:
+                continue
+            seen.add(activity_id)
+            found.append(activity_id)
+        if found:
+            logger.info("linkedin_profile_scrape_ids", slug=slug, count=len(found))
+
+    if len(found) >= max_ids:
+        return found[:max_ids]
+
     if google_cse_api_key and google_cse_cx:
-        queries = [
+        cse_queries = [
             f"site:linkedin.com/posts/{slug}",
             f"site:linkedin.com/in/{slug}",
         ]
-        found: list[str] = []
-        seen: set[str] = set()
-        for query in queries:
+        for query in cse_queries:
             for activity_id in await _google_cse_search(
                 client,
                 query,
@@ -258,9 +309,6 @@ async def _search_activity_ids(
         queries.append(f"site:linkedin.com/posts/{slug}")
         queries.append(f"site:linkedin.com/in/{slug} posts")
 
-    found = []
-    seen = set()
-
     def collect_from_html(html: str) -> None:
         for activity_id in extract_activity_ids(html):
             if activity_id in seen:
@@ -278,9 +326,9 @@ async def _search_activity_ids(
         ):
             try:
                 if method == "GET":
-                    response = await client.get(ddg_url, headers=_BROWSER_HEADERS, **kwargs)
+                    response = await client.get(ddg_url, headers=headers, **kwargs)
                 else:
-                    response = await client.post(ddg_url, headers=_BROWSER_HEADERS, **kwargs)
+                    response = await client.post(ddg_url, headers=headers, **kwargs)
                 if response.status_code == 200:
                     collect_from_html(response.text)
             except httpx.HTTPError:
@@ -292,12 +340,12 @@ async def _search_activity_ids(
 
         bing_url = "https://www.bing.com/search"
         try:
-            response = await client.get(bing_url, params={"q": query}, headers=_BROWSER_HEADERS)
+            response = await client.get(bing_url, params={"q": query}, headers=headers)
             if response.status_code == 200:
                 collect_from_html(response.text)
                 for match in re.finditer(r'href="(https://www\.bing\.com/ck/a\?[^"]+)"', response.text):
                     try:
-                        redirect = await client.get(unescape(match.group(1)), headers=_BROWSER_HEADERS)
+                        redirect = await client.get(unescape(match.group(1)), headers=headers)
                         collect_from_html(str(redirect.url))
                         collect_from_html(redirect.text)
                     except httpx.HTTPError:
@@ -312,7 +360,7 @@ async def _search_activity_ids(
 
 
 async def discover_activity_ids(
-    proxy_url: str | None,
+    router: LinkedInHttpRouter,
     slug: str,
     profile_type: str,
     *,
@@ -320,23 +368,26 @@ async def discover_activity_ids(
     google_cse_api_key: str | None = None,
     google_cse_cx: str | None = None,
 ) -> list[str]:
-    async with create_httpx_client(proxy_url, timeout=30.0) as client:
+    async def work(_slot, client, headers):
         return await _search_activity_ids(
             client,
             slug,
             profile_type,
+            headers,
             max_ids=max_ids,
             google_cse_api_key=google_cse_api_key,
             google_cse_cx=google_cse_cx,
         )
+
+    return await router.run_browser(work)
 
 
 async def fetch_public_posts(
     profile: LinkedInProfile,
     since: datetime,
     *,
+    router: LinkedInHttpRouter,
     max_posts: int,
-    proxy_url: str | None,
     google_cse_api_key: str | None = None,
     google_cse_cx: str | None = None,
 ) -> list[ContentMessage]:
@@ -350,41 +401,45 @@ async def fetch_public_posts(
         activity_ids.append(slug.removeprefix("activity-"))
         search_slug = ""
 
-    discovered: list[str] = []
-    if search_slug:
-        discovered = await discover_activity_ids(
-            proxy_url,
-            search_slug,
-            profile.profile_type,
-            max_ids=max_posts,
-            google_cse_api_key=google_cse_api_key,
-            google_cse_cx=google_cse_cx,
-        )
-    for activity_id in discovered:
-        if activity_id not in activity_ids:
-            activity_ids.append(activity_id)
+    async def work(_slot, client, headers):
+        discovered: list[str] = []
+        if search_slug:
+            discovered = await _search_activity_ids(
+                client,
+                search_slug,
+                profile.profile_type,
+                headers,
+                max_ids=max_posts,
+                google_cse_api_key=google_cse_api_key,
+                google_cse_cx=google_cse_cx,
+            )
 
-    label = profile.title or profile.profile_slug
-    messages: list[ContentMessage] = []
-    seen_posts: set[str] = set()
-    author_key = search_slug or None
+        ids = list(activity_ids)
+        for activity_id in discovered:
+            if activity_id not in ids:
+                ids.append(activity_id)
 
-    async with create_httpx_client(proxy_url, timeout=30.0) as client:
+        label = profile.title or profile.profile_slug
+        messages: list[ContentMessage] = []
+        seen_posts: set[str] = set()
+        author_key = search_slug or None
+
         if discovered and author_key:
             probed = await _probe_forward_posts(
                 client,
                 author_key,
                 discovered[0],
                 since,
+                headers,
             )
             for activity_id, text, relative, post_url in probed:
-                if activity_id not in activity_ids:
-                    activity_ids.insert(0, activity_id)
+                if activity_id not in ids:
+                    ids.insert(0, activity_id)
 
-        for activity_id in activity_ids[: max_posts * 2]:
+        for activity_id in ids[: max_posts * 2]:
             if activity_id in seen_posts:
                 continue
-            text, post_url, relative, author_slug = await fetch_embed_post(client, activity_id)
+            text, post_url, relative, author_slug = await fetch_embed_post(client, activity_id, headers)
             if not text:
                 continue
             if author_key and author_slug and author_slug != author_key:
@@ -408,26 +463,32 @@ async def fetch_public_posts(
             if len(messages) >= max_posts:
                 break
 
-    logger.info(
-        "linkedin_public_fetched",
-        slug=profile.profile_slug,
-        discovered=len(activity_ids),
-        matched=len(messages),
-    )
-    return messages
+        logger.info(
+            "linkedin_public_fetched",
+            slug=profile.profile_slug,
+            discovered=len(ids),
+            matched=len(messages),
+        )
+        return messages
+
+    return await router.run_browser(work)
 
 
 async def resolve_profile_from_activity_url(
     activity_url: str,
     *,
-    proxy_url: str | None,
+    router: LinkedInHttpRouter,
 ) -> tuple[str | None, str | None]:
     ids = extract_activity_ids(activity_url)
     if not ids:
         return None, None
     activity_id = ids[0]
-    async with create_httpx_client(proxy_url, timeout=30.0) as client:
-        _, _, _, author_slug = await fetch_embed_post(client, activity_id)
+
+    async def work(_slot, client, headers):
+        _, _, _, author_slug = await fetch_embed_post(client, activity_id, headers)
+        return author_slug
+
+    author_slug = await router.run_browser(work)
     if not author_slug:
         return None, f"urn:li:activity:{activity_id}"
     return author_slug, f"urn:li:activity:{activity_id}"

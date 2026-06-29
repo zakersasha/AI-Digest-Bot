@@ -11,7 +11,9 @@ from app.ai.factory import create_ai_provider
 from app.bot.handlers import router
 from app.bot.logging_middleware import LoggingMiddleware
 from app.bot.middlewares import ServicesMiddleware
-from app.config import effective_linkedin_proxy_url, effective_telethon_proxy_url, get_settings
+from app.config import effective_telethon_proxy_url, get_settings
+from app.utils.http_proxy import proxy_host
+from app.utils.linkedin_slots import build_linkedin_slots
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
 from app.web.gmail_oauth import start_oauth_server
@@ -146,11 +148,17 @@ async def run_bot() -> None:
                 redirect_uri=settings.linkedin_redirect_uri,
                 bot_username=bot_username,
             )
-            li_proxy = effective_linkedin_proxy_url(settings)
-            if li_proxy:
-                logger.info("linkedin_proxy_configured")
-            else:
-                logger.warning("linkedin_proxy_missing")
+        li_slots = build_linkedin_slots(settings)
+        for slot in li_slots:
+            logger.info(
+                "linkedin_slot_configured",
+                slot=slot.index,
+                proxy_enabled=bool(slot.proxy_url),
+                proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                user_agent=slot.user_agent[:40],
+            )
+        if not any(slot.proxy_url for slot in li_slots):
+            logger.warning("linkedin_proxy_missing")
         if settings.slack_client_id and settings.slack_client_secret:
             logger.info(
                 "slack_oauth_enabled",

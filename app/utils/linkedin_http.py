@@ -1,0 +1,102 @@
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
+
+import httpx
+
+from app.utils.http_proxy import create_httpx_client, proxy_host
+from app.utils.linkedin_slots import LinkedInSlot, browser_headers
+from app.utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+T = TypeVar("T")
+
+_RETRYABLE_STATUS = frozenset({429, 403, 500, 502, 503, 504})
+
+
+def _is_retryable(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in _RETRYABLE_STATUS
+    return isinstance(exc, (httpx.TimeoutException, httpx.ConnectError, httpx.NetworkError))
+
+
+class LinkedInHttpRouter:
+    def __init__(self, slots: list[LinkedInSlot], *, timeout: float = 30.0) -> None:
+        if not slots:
+            raise ValueError("At least one LinkedIn slot is required")
+        self._slots = slots
+        self._timeout = timeout
+        self._next_start = 0
+
+    @property
+    def slots(self) -> list[LinkedInSlot]:
+        return self._slots
+
+    def _pick_start(self) -> int:
+        idx = self._next_start
+        self._next_start = (idx + 1) % len(self._slots)
+        return idx
+
+    async def run_browser(
+        self,
+        coro_fn: Callable[[LinkedInSlot, httpx.AsyncClient, dict[str, str]], Awaitable[T]],
+    ) -> T:
+        return await self._run(coro_fn, with_headers=True)
+
+    async def run_api(
+        self,
+        coro_fn: Callable[[LinkedInSlot, httpx.AsyncClient], Awaitable[T]],
+    ) -> T:
+        async def wrapped(slot: LinkedInSlot, client: httpx.AsyncClient, _headers: dict[str, str]) -> T:
+            return await coro_fn(slot, client)
+
+        return await self._run(wrapped, with_headers=False)
+
+    async def _run(
+        self,
+        coro_fn: Callable[[LinkedInSlot, httpx.AsyncClient, dict[str, str]], Awaitable[T]],
+        *,
+        with_headers: bool,
+    ) -> T:
+        last_exc: Exception | None = None
+        n = len(self._slots)
+        start = self._pick_start()
+
+        for offset in range(n):
+            slot_idx = (start + offset) % n
+            slot = self._slots[slot_idx]
+            headers = browser_headers(slot) if with_headers else {}
+
+            logger.debug(
+                "linkedin_request_slot",
+                slot=slot.index,
+                proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                browser=with_headers,
+            )
+
+            try:
+                async with create_httpx_client(slot.proxy_url, self._timeout) as client:
+                    return await coro_fn(slot, client, headers)
+            except Exception as exc:
+                if not _is_retryable(exc) or offset == n - 1:
+                    logger.warning(
+                        "linkedin_slot_failed",
+                        slot=slot.index,
+                        error=str(exc),
+                        retryable=_is_retryable(exc),
+                        proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                    )
+                    raise
+                last_exc = exc
+                next_slot = self._slots[(slot_idx + 1) % n].index
+                logger.warning(
+                    "linkedin_slot_retry",
+                    slot=slot.index,
+                    next_slot=next_slot,
+                    error=str(exc),
+                    proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                )
+
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("linkedin slots exhausted")

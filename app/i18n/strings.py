@@ -332,9 +332,10 @@ STRINGS: dict[str, dict[str, str]] = {
             "Первый дайджест придёт по расписанию. Можно получить сейчас — кнопка ниже."
         ),
         "li_screen_hint": (
-            "Два способа:\n"
-            "• <b>Ссылки</b> — вставьте URL профилей вручную\n"
-            "• <b>Подключить LinkedIn</b> — выбрать из подписок на компании"
+            "Два способа добавить профили:\n"
+            "• <b>Ссылки</b> — люди и компании (лишние параметры в URL уберём сами)\n"
+            "• <b>Подключить LinkedIn</b> — выбрать из подписок на <b>компании</b> "
+            "(список людей API не отдаёт)"
         ),
         "li_status_linked": "✅ Аккаунт: <b>{name}</b>",
         "li_status_manual": "📋 Профили добавлены вручную",
@@ -346,28 +347,40 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_li_add_links": "🔗 Ссылки",
         "btn_li_disconnect": "🔌 Отключить LinkedIn",
         "btn_li_profiles": "📋 Профили ({count})",
-        "btn_li_pick_profiles": "📋 Мои подписки",
+        "btn_li_pick_profiles": "📋 Подписки (компании)",
         "btn_li_pick_done": "✅ Готово",
         "li_profiles_screen_title": "📋 Профили",
-        "li_profiles_screen_hint_linked": "Выберите из подписок или добавьте ссылкой.",
-        "li_profiles_screen_hint_manual": "Добавьте профили ссылкой. OAuth — чтобы выбрать из подписок.",
+        "li_profiles_screen_hint_linked": (
+            "Подписки на компании — через «Подписки». Людей — ссылкой."
+        ),
+        "li_profiles_screen_hint_manual": (
+            "Вставьте ссылки на публичные профили. Параметры (?trk=…) и хвосты пути обрежем."
+        ),
         "li_profiles_summary": "Профилей в дайджесте: <b>{count}</b>",
         "li_no_profiles_yet": "Профили не выбраны — откройте «Профили».",
         "li_profiles_list_empty": "Профили не добавлены.",
         "li_profiles_list_header": "В дайджесте ({count}):",
         "li_add_prompt": (
-            "Отправьте ссылки на профили LinkedIn — по одной на строку.\n\n"
+            "Отправьте ссылки на профили LinkedIn — по одной на строку.\n"
+            "Можно с <code>?trk=…</code> и лишними сегментами — нормализуем сами.\n\n"
             "Примеры:\n"
             "<code>https://www.linkedin.com/in/username</code>\n"
-            "<code>https://www.linkedin.com/company/acme</code>\n"
+            "<code>https://www.linkedin.com/in/username/recent-activity/all/</code>\n"
+            "<code>https://www.linkedin.com/company/acme?trk=foo</code>\n"
             "<code>https://www.linkedin.com/feed/update/urn:li:activity:…</code>"
         ),
         "li_profiles_added": "✅ Добавлено профилей: {count}",
         "li_profiles_already": "ℹ️ Эти профили уже в списке.",
         "li_parse_failed": "❌ Не нашёл ссылок LinkedIn. Пример: linkedin.com/in/username",
         "li_profile_removed": "Профиль удалён.",
-        "li_picker_hint": "Ваши подписки на компании ({count}). Нажмите, чтобы добавить или убрать:",
-        "li_picker_empty": "Подписок на компании не найдено. Добавьте профиль вручную ссылкой.",
+        "li_picker_hint": (
+            "Подписки на компании в LinkedIn ({count}). "
+            "Людей здесь нет — добавьте ссылкой. Нажмите, чтобы включить/убрать:"
+        ),
+        "li_picker_empty": (
+            "Подписок на компании не найдено (или нет доступа API). "
+            "Добавьте профили вручную ссылкой."
+        ),
         "li_not_linked": "❌ Сначала подключите LinkedIn.",
         "li_disconnected": "LinkedIn отключён.",
         "li_no_profiles": "❌ Выберите хотя бы один профиль.",
@@ -383,7 +396,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_header_linkedin": "🔥 *Твой LinkedIn-дайджест {period}*",
         "digest_progress_fetch_linkedin": "📡 Загружаю LinkedIn <b>{label}</b>{dots}",
         "digest_progress_read_linkedin": "📥 Читаю посты <b>{label}</b>{dots}",
-        "pick_source_first": "❌ Настройте источник: каналы, Gmail или Slack.",
+        "pick_source_first": "❌ Настройте источник: каналы, Gmail, Slack или LinkedIn.",
     },
     "en": {
         "flow_step_prefix": "<b>Step {step}/{total}</b>",
@@ -718,9 +731,10 @@ STRINGS: dict[str, dict[str, str]] = {
             "Your first digest will arrive on schedule. Or get one now below."
         ),
         "li_screen_hint": (
-            "Two ways:\n"
-            "• <b>Links</b> — paste profile URLs manually\n"
-            "• <b>Connect LinkedIn</b> — pick from company follows"
+            "Two ways to add profiles:\n"
+            "• <b>Links</b> — people and companies (we strip extra URL params)\n"
+            "• <b>Connect LinkedIn</b> — pick <b>company</b> follows "
+            "(people follows are not available via API)"
         ),
         "li_status_linked": "✅ Account: <b>{name}</b>",
         "li_status_manual": "📋 Profiles added manually",
@@ -732,28 +746,40 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_li_add_links": "🔗 Links",
         "btn_li_disconnect": "🔌 Disconnect LinkedIn",
         "btn_li_profiles": "📋 Profiles ({count})",
-        "btn_li_pick_profiles": "📋 My follows",
+        "btn_li_pick_profiles": "📋 Follows (companies)",
         "btn_li_pick_done": "✅ Done",
         "li_profiles_screen_title": "📋 Profiles",
-        "li_profiles_screen_hint_linked": "Pick from follows or add by link.",
-        "li_profiles_screen_hint_manual": "Add profiles by link. OAuth — to pick from follows.",
+        "li_profiles_screen_hint_linked": (
+            "Company follows — via «Follows». People — add by link."
+        ),
+        "li_profiles_screen_hint_manual": (
+            "Paste public profile links. Query params (?trk=…) and extra path segments are trimmed."
+        ),
         "li_profiles_summary": "Profiles in digest: <b>{count}</b>",
         "li_no_profiles_yet": "No profiles selected — open «Profiles».",
         "li_profiles_list_empty": "No profiles added.",
         "li_profiles_list_header": "In digest ({count}):",
         "li_add_prompt": (
-            "Send LinkedIn profile URLs — one per line.\n\n"
+            "Send LinkedIn profile URLs — one per line.\n"
+            "Extra <code>?trk=…</code> params and path suffixes are fine — we normalize them.\n\n"
             "Examples:\n"
             "<code>https://www.linkedin.com/in/username</code>\n"
-            "<code>https://www.linkedin.com/company/acme</code>\n"
+            "<code>https://www.linkedin.com/in/username/recent-activity/all/</code>\n"
+            "<code>https://www.linkedin.com/company/acme?trk=foo</code>\n"
             "<code>https://www.linkedin.com/feed/update/urn:li:activity:…</code>"
         ),
         "li_profiles_added": "✅ Profiles added: {count}",
         "li_profiles_already": "ℹ️ These profiles are already in the list.",
         "li_parse_failed": "❌ No LinkedIn links found. Example: linkedin.com/in/username",
         "li_profile_removed": "Profile removed.",
-        "li_picker_hint": "Your company follows ({count}). Tap to add or remove:",
-        "li_picker_empty": "No company follows found. Add a profile manually by link.",
+        "li_picker_hint": (
+            "Your LinkedIn company follows ({count}). "
+            "People are not listed here — add by link. Tap to toggle:"
+        ),
+        "li_picker_empty": (
+            "No company follows found (or API access denied). "
+            "Add profiles manually by link."
+        ),
         "li_not_linked": "❌ Connect LinkedIn first.",
         "li_disconnected": "LinkedIn disconnected.",
         "li_no_profiles": "❌ Select at least one profile.",
@@ -769,6 +795,6 @@ STRINGS: dict[str, dict[str, str]] = {
         "digest_header_linkedin": "🔥 *Your LinkedIn digest {period}*",
         "digest_progress_fetch_linkedin": "📡 Loading LinkedIn <b>{label}</b>{dots}",
         "digest_progress_read_linkedin": "📥 Reading posts <b>{label}</b>{dots}",
-        "pick_source_first": "❌ Set up a source first: channels, Gmail, or Slack.",
+        "pick_source_first": "❌ Set up a source first: channels, Gmail, Slack, or LinkedIn.",
     },
 }

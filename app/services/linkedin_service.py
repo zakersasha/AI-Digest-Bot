@@ -5,17 +5,24 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from urllib.parse import quote, urlencode
 
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
+
 import httpx
 
-from app.config import Settings, effective_linkedin_proxy_url
+from app.config import Settings
 from app.models.linkedin_profile import LinkedInProfile
 from app.services.content_message import ContentMessage
 from app.services.linkedin_public import fetch_public_posts
 from app.utils.crypto import decrypt_session, encrypt_session
-from app.utils.http_proxy import create_httpx_client, proxy_host
+from app.utils.http_proxy import proxy_host
+from app.utils.linkedin_http import LinkedInHttpRouter
+from app.utils.linkedin_slots import LinkedInSlot, build_linkedin_slots
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+T = TypeVar("T")
 
 LINKEDIN_AUTH_URL = "https://www.linkedin.com/oauth/v2/authorization"
 LINKEDIN_TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
@@ -38,10 +45,20 @@ class FollowedProfile:
 class LinkedInService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._proxy_url = effective_linkedin_proxy_url(settings)
+        self._router = LinkedInHttpRouter(build_linkedin_slots(settings))
 
-    def _client(self, *, timeout: float = 30.0) -> httpx.AsyncClient:
-        return create_httpx_client(self._proxy_url, timeout)
+    @property
+    def router(self) -> LinkedInHttpRouter:
+        return self._router
+
+    async def _api_request(
+        self,
+        coro_fn: Callable[[httpx.AsyncClient], Awaitable[T]],
+    ) -> T:
+        async def work(_slot: LinkedInSlot, client: httpx.AsyncClient) -> T:
+            return await coro_fn(client)
+
+        return await self._router.run_api(work)
 
     @staticmethod
     def _decode_jwt_payload(token: str) -> dict:
@@ -86,10 +103,12 @@ class LinkedInService:
             "client_id": self._settings.linkedin_client_id,
             "client_secret": self._settings.linkedin_client_secret,
         }
-        async with self._client() as client:
+        async def work(client: httpx.AsyncClient) -> dict:
             response = await client.post(LINKEDIN_TOKEN_URL, data=payload)
             response.raise_for_status()
-            data = response.json()
+            return response.json()
+
+        data = await self._api_request(work)
         data["expires_at"] = int(time.time()) + int(data.get("expires_in", 3600))
         return data
 
@@ -172,10 +191,12 @@ class LinkedInService:
             "client_id": self._settings.linkedin_client_id,
             "client_secret": self._settings.linkedin_client_secret,
         }
-        async with self._client() as client:
+        async def work(client: httpx.AsyncClient) -> dict:
             response = await client.post(LINKEDIN_TOKEN_URL, data=payload)
             response.raise_for_status()
-            refreshed = response.json()
+            return response.json()
+
+        refreshed = await self._api_request(work)
         tokens["access_token"] = refreshed["access_token"]
         tokens["expires_at"] = int(time.time()) + int(refreshed.get("expires_in", 3600))
         if refreshed.get("refresh_token"):
@@ -184,10 +205,12 @@ class LinkedInService:
 
     async def fetch_member_info(self, access_token: str) -> dict:
         headers = {"Authorization": f"Bearer {access_token}"}
-        async with self._client() as client:
+        async def work(client: httpx.AsyncClient) -> dict:
             response = await client.get(LINKEDIN_USERINFO_URL, headers=headers)
             response.raise_for_status()
             return response.json()
+
+        return await self._api_request(work)
 
     async def resolve_member_info(self, tokens: dict) -> dict:
         id_token = tokens.get("id_token")
@@ -207,7 +230,9 @@ class LinkedInService:
             logger.warning(
                 "linkedin_userinfo_failed",
                 error=str(exc),
-                proxy=proxy_host(self._proxy_url) if self._proxy_url else None,
+                proxy=proxy_host(self._router.slots[0].proxy_url)
+                if self._router.slots[0].proxy_url
+                else None,
             )
             if id_token:
                 claims = self._decode_jwt_payload(id_token)
@@ -220,7 +245,8 @@ class LinkedInService:
         profiles: list[FollowedProfile] = []
         seen: set[str] = set()
 
-        async with self._client() as client:
+        async def work(client: httpx.AsyncClient) -> list[FollowedProfile]:
+            result: list[FollowedProfile] = []
             try:
                 response = await client.get(
                     f"{LINKEDIN_API}/rest/memberFollowedOrganizations",
@@ -239,7 +265,7 @@ class LinkedInService:
                         if not slug or slug in seen:
                             continue
                         seen.add(slug)
-                        profiles.append(
+                        result.append(
                             FollowedProfile(
                                 slug=slug,
                                 profile_type="company",
@@ -264,7 +290,7 @@ class LinkedInService:
                         if not slug or slug in seen:
                             continue
                         seen.add(slug)
-                        profiles.append(
+                        result.append(
                             FollowedProfile(
                                 slug=slug,
                                 profile_type="company",
@@ -275,6 +301,9 @@ class LinkedInService:
                         )
             except httpx.HTTPError as exc:
                 logger.warning("linkedin_entity_follows_failed", error=str(exc))
+            return result
+
+        profiles = await self._api_request(work)
 
         profiles.sort(key=lambda item: item.title.lower())
         logger.info("linkedin_followed_fetched", count=len(profiles))
@@ -555,7 +584,8 @@ class LinkedInService:
         slug_set = {slug.lower().removeprefix("@") for slug in tracked_slugs}
         messages: list[ContentMessage] = []
 
-        async with self._client() as client:
+        async def work(client: httpx.AsyncClient) -> list[ContentMessage]:
+            result: list[ContentMessage] = []
             try:
                 response = await client.get(
                     f"{LINKEDIN_API}/v2/activityFeeds",
@@ -564,7 +594,7 @@ class LinkedInService:
                 )
             except httpx.HTTPError as exc:
                 logger.info("linkedin_network_feed_error", error=str(exc))
-                return [], tokens
+                return result
 
             if response.status_code != 200:
                 logger.info(
@@ -572,7 +602,7 @@ class LinkedInService:
                     status=response.status_code,
                     body=response.text[:200],
                 )
-                return [], tokens
+                return result
 
             elements = response.json().get("elements", [])
             for elem in elements:
@@ -604,7 +634,7 @@ class LinkedInService:
                     continue
                 label = vanity or "linkedin"
                 post_url = f"https://www.linkedin.com/feed/update/{share_urn}"
-                messages.append(
+                result.append(
                     ContentMessage(
                         text=str(text).strip()[:2000],
                         source=f"linkedin:{label}",
@@ -613,6 +643,9 @@ class LinkedInService:
                         post_url=post_url,
                     )
                 )
+            return result
+
+        messages = await self._api_request(work)
 
         if messages:
             logger.info("linkedin_network_feed_used", count=len(messages))
@@ -632,34 +665,42 @@ class LinkedInService:
         api_error: str | None = None
         author_urn: str | None = None
 
-        async with self._client() as client:
-            author_urn = await self._resolve_author_urn(
+        async def work(
+            client: httpx.AsyncClient,
+        ) -> tuple[list[ContentMessage], str | None, str | None]:
+            urn = await self._resolve_author_urn(
                 client,
                 access_token,
                 profile,
                 member_id=member_id,
                 org_urns=org_urns,
             )
-            if author_urn:
-                messages, error = await self._fetch_posts_rest(
-                    client, access_token, author_urn, profile, since_ts
-                )
-                if messages:
-                    return messages, tokens, None
+            if not urn:
+                return [], None, None
 
-                messages, ugc_error = await self._fetch_posts_ugc(
-                    client, access_token, author_urn, profile, since_ts
-                )
-                if messages:
-                    return messages, tokens, None
+            messages, error = await self._fetch_posts_rest(
+                client, access_token, urn, profile, since_ts
+            )
+            if messages:
+                return messages, urn, None
 
-                api_error = ugc_error or error or "no_posts"
+            messages, ugc_error = await self._fetch_posts_ugc(
+                client, access_token, urn, profile, since_ts
+            )
+            if messages:
+                return messages, urn, None
+
+            return [], urn, ugc_error or error or "no_posts"
+
+        messages, author_urn, api_error = await self._api_request(work)
+        if messages:
+            return messages, tokens, None
 
         public = await fetch_public_posts(
             profile,
             since,
             max_posts=self._settings.linkedin_max_posts,
-            proxy_url=self._proxy_url,
+            router=self._router,
             google_cse_api_key=self._settings.google_cse_api_key,
             google_cse_cx=self._settings.google_cse_cx,
         )

@@ -19,6 +19,7 @@ from app.services.content_message import ContentMessage
 from app.services.frequency import digest_content_since
 from app.services.gmail_service import GmailService
 from app.services.linkedin_service import LinkedInService
+from app.services.linkedin_public import fetch_public_posts
 from app.services.slack_service import SlackService
 from app.services.message_selection import interleave_messages_by_source, select_balanced_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
@@ -68,7 +69,7 @@ class DigestService:
         if platform == "slack":
             return await self._generate_slack_digest(user, frequency, language)
         if platform == "linkedin":
-            raise ValueError(t(language, "platform_coming_soon"))
+            return await self._generate_linkedin_digest(user, frequency, language)
         raise ValueError(t(language, "platform_unavailable"))
 
     async def generate_scheduled(
@@ -239,16 +240,24 @@ class DigestService:
             channel_titles=channel_titles,
         )
 
+    async def _fetch_linkedin_public_posts(
+        self,
+        profile,
+        since: datetime,
+    ) -> list[ContentMessage]:
+        return await fetch_public_posts(
+            profile,
+            since,
+            max_posts=self._settings.linkedin_max_posts,
+            router=self._linkedin.router,
+            google_cse_api_key=self._settings.google_cse_api_key,
+            google_cse_cx=self._settings.google_cse_cx,
+        )
+
     async def _generate_linkedin_digest(self, user: User, frequency: str, language: str) -> str:
         profiles = await self._linkedin_repo.list_active_for_user(user.id)
         if not profiles:
             raise ValueError(t(language, "li_no_profiles"))
-
-        if not self._user_repo.has_linkedin(user):
-            raise ValueError(t(language, "li_not_linked"))
-
-        if not self._linkedin.is_configured():
-            raise ValueError(t(language, "li_not_configured"))
 
         since = digest_content_since(frequency)
         label = frequency_label(language, frequency)
@@ -256,43 +265,62 @@ class DigestService:
         all_messages: list[ContentMessage] = []
         api_errors: list[str] = []
         latest_tokens: dict | None = None
-        tracked_slugs = {p.profile_slug.lower() for p in profiles if not p.profile_slug.startswith("activity-")}
-        org_urns: list[str] = []
-        try:
-            followed = await self._linkedin.fetch_followed_profiles(user.linkedin_tokens_encrypted)
-            org_urns = [p.linkedin_urn for p in followed if p.linkedin_urn]
-        except Exception:
-            pass
-        try:
-            feed_posts, feed_tokens = await self._linkedin.fetch_network_feed_posts(
-                user.linkedin_tokens_encrypted,
-                tracked_slugs,
-                since,
-            )
-            if feed_posts:
-                all_messages.extend(feed_posts)
-            latest_tokens = feed_tokens or latest_tokens
+        linked = self._user_repo.has_linkedin(user)
+        use_api = linked and self._linkedin.is_configured()
 
-            for profile in profiles:
+        try:
+            if use_api:
+                tracked_slugs = {
+                    p.profile_slug.lower() for p in profiles if not p.profile_slug.startswith("activity-")
+                }
+                org_urns: list[str] = []
                 try:
-                    posts, tokens, err = await self._linkedin.fetch_posts(
-                        user.linkedin_tokens_encrypted,
-                        profile,
-                        since,
-                        member_id=user.linkedin_member_id,
-                        org_urns=org_urns,
-                    )
-                    latest_tokens = tokens
-                    if err:
-                        api_errors.append(f"{profile.profile_slug}: {err}")
-                    all_messages.extend(posts)
-                except ValueError as exc:
-                    logger.warning(
-                        "linkedin_profile_fetch_failed",
-                        slug=profile.profile_slug,
-                        error=str(exc),
-                    )
-                    api_errors.append(f"{profile.profile_slug}: {exc}")
+                    followed = await self._linkedin.fetch_followed_profiles(user.linkedin_tokens_encrypted)
+                    org_urns = [p.linkedin_urn for p in followed if p.linkedin_urn]
+                except Exception:
+                    pass
+
+                feed_posts, feed_tokens = await self._linkedin.fetch_network_feed_posts(
+                    user.linkedin_tokens_encrypted,
+                    tracked_slugs,
+                    since,
+                )
+                if feed_posts:
+                    all_messages.extend(feed_posts)
+                latest_tokens = feed_tokens or latest_tokens
+
+                for profile in profiles:
+                    try:
+                        posts, tokens, err = await self._linkedin.fetch_posts(
+                            user.linkedin_tokens_encrypted,
+                            profile,
+                            since,
+                            member_id=user.linkedin_member_id,
+                            org_urns=org_urns,
+                        )
+                        latest_tokens = tokens
+                        if err:
+                            api_errors.append(f"{profile.profile_slug}: {err}")
+                        all_messages.extend(posts)
+                    except ValueError as exc:
+                        logger.warning(
+                            "linkedin_profile_fetch_failed",
+                            slug=profile.profile_slug,
+                            error=str(exc),
+                        )
+                        api_errors.append(f"{profile.profile_slug}: {exc}")
+            else:
+                for profile in profiles:
+                    try:
+                        posts = await self._fetch_linkedin_public_posts(profile, since)
+                        all_messages.extend(posts)
+                    except httpx.HTTPError as exc:
+                        logger.warning(
+                            "linkedin_public_fetch_failed",
+                            slug=profile.profile_slug,
+                            error=str(exc),
+                        )
+                        api_errors.append(f"{profile.profile_slug}: {exc}")
         except httpx.HTTPError as exc:
             logger.error("linkedin_fetch_failed", user_id=user.id, error=str(exc))
             raise RuntimeError(t(language, "li_fetch_failed")) from exc
@@ -302,12 +330,10 @@ class DigestService:
             await self._session.flush()
 
         if not all_messages:
-            if api_errors and any("403" in e or "401" in e for e in api_errors):
+            if use_api and api_errors and any("403" in e or "401" in e for e in api_errors):
                 raise ValueError(t(language, "li_api_denied"))
             if api_errors:
                 logger.warning("linkedin_fetch_errors", user_id=user.id, errors=api_errors)
-            if not (self._settings.google_cse_api_key and self._settings.google_cse_cx):
-                raise ValueError(t(language, "no_linkedin_posts_no_cse", label=label))
             raise ValueError(t(language, "no_linkedin_posts", label=label))
 
         return await self._build_digest(

@@ -210,8 +210,11 @@ def effective_openai_proxy_url(settings: Settings) -> str | None:
 
 
 def effective_linkedin_proxy_url(settings: Settings) -> str | None:
-    """LinkedIn API: LINKEDIN_PROXY_URL, else BOT/TELEGRAM proxy chain."""
-    return settings.linkedin_proxy_url or effective_telethon_proxy_url(settings)
+    """First LinkedIn slot proxy (OPENAI_PROXY_URL or LINKEDIN_PROXY_URL override)."""
+    from app.utils.linkedin_slots import build_linkedin_slots
+
+    slots = build_linkedin_slots(settings)
+    return slots[0].proxy_url if slots else None
 
 
 @lru_cache
