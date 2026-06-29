@@ -701,6 +701,7 @@ class LinkedInService:
             since,
             max_posts=self._settings.linkedin_max_posts,
             router=self._router,
+            lookback_days=self._settings.linkedin_public_lookback_days,
             google_cse_api_key=self._settings.google_cse_api_key,
             google_cse_cx=self._settings.google_cse_cx,
         )

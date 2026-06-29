@@ -250,6 +250,7 @@ class DigestService:
             since,
             max_posts=self._settings.linkedin_max_posts,
             router=self._linkedin.router,
+            lookback_days=self._settings.linkedin_public_lookback_days,
             google_cse_api_key=self._settings.google_cse_api_key,
             google_cse_cx=self._settings.google_cse_cx,
         )
@@ -267,6 +268,10 @@ class DigestService:
         latest_tokens: dict | None = None
         linked = self._user_repo.has_linkedin(user)
         use_api = linked and self._linkedin.is_configured()
+        has_proxy = any(slot.proxy_url for slot in self._linkedin.router.slots)
+
+        if not use_api and not has_proxy:
+            raise ValueError(t(language, "li_proxy_missing"))
 
         try:
             if use_api:
@@ -332,6 +337,9 @@ class DigestService:
         if not all_messages:
             if use_api and api_errors and any("403" in e or "401" in e for e in api_errors):
                 raise ValueError(t(language, "li_api_denied"))
+            if api_errors and not use_api:
+                logger.warning("linkedin_fetch_errors", user_id=user.id, errors=api_errors)
+                raise RuntimeError(t(language, "li_fetch_failed"))
             if api_errors:
                 logger.warning("linkedin_fetch_errors", user_id=user.id, errors=api_errors)
             raise ValueError(t(language, "no_linkedin_posts", label=label))

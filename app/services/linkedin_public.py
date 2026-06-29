@@ -62,13 +62,35 @@ def parse_relative_age(value: str) -> timedelta | None:
     return timedelta(days=amount * 365)
 
 
-def is_within_since(relative: str | None, since: datetime) -> bool:
+def is_within_since(
+    relative: str | None,
+    since: datetime,
+    *,
+    absolute: datetime | None = None,
+) -> bool:
+    if absolute is not None:
+        return absolute >= since
     if not relative:
         return True
     delta = parse_relative_age(relative)
     if not delta:
         return True
     return datetime.now(tz=UTC) - delta >= since
+
+
+def post_created_at(relative: str | None, absolute: datetime | None) -> datetime:
+    if absolute is not None:
+        return absolute
+    if relative:
+        delta = parse_relative_age(relative)
+        if delta:
+            return datetime.now(tz=UTC) - delta
+    return datetime.now(tz=UTC)
+
+
+def widen_public_since(since: datetime, lookback_days: int) -> datetime:
+    floor = datetime.now(tz=UTC) - timedelta(days=lookback_days)
+    return min(since, floor)
 
 
 def extract_author_slug(html: str) -> str | None:
@@ -103,30 +125,53 @@ def _extract_relative_time(html: str) -> str | None:
     return text or None
 
 
+def _extract_absolute_time(html: str) -> datetime | None:
+    match = re.search(r'<time[^>]+datetime="([^"]+)"', html, re.I)
+    if not match:
+        return None
+    raw = match.group(1).strip()
+    try:
+        if raw.endswith("Z"):
+            raw = f"{raw[:-1]}+00:00"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+    except ValueError:
+        return None
+
+
 async def fetch_embed_post(
     client: httpx.AsyncClient,
     activity_id: str,
     headers: dict[str, str],
-) -> tuple[str, str, str | None, str | None]:
+) -> tuple[str, str, str | None, str | None, datetime | None]:
     url = f"https://www.linkedin.com/embed/feed/update/urn:li:activity:{activity_id}"
     try:
         response = await client.get(url, headers=headers)
     except httpx.HTTPError as exc:
         logger.warning("linkedin_embed_failed", activity_id=activity_id, error=str(exc))
-        return "", "", None, None
+        return "", "", None, None, None
 
     if response.status_code != 200 or len(response.text) < 1000:
-        return "", "", None, None
+        logger.info(
+            "linkedin_embed_skip",
+            activity_id=activity_id,
+            status=response.status_code,
+            body_len=len(response.text),
+        )
+        return "", "", None, None, None
 
     html = response.text
     text = _extract_meta_description(html)
     if not text:
-        return "", "", None, None
+        return "", "", None, None, None
 
     post_url = f"https://www.linkedin.com/feed/update/urn:li:activity:{activity_id}"
     relative = _extract_relative_time(html)
+    absolute = _extract_absolute_time(html)
     author_slug = extract_author_slug(html)
-    return text, post_url, relative, author_slug
+    return text, post_url, relative, author_slug, absolute
 
 
 async def _google_cse_search(
@@ -198,12 +243,14 @@ async def _probe_forward_posts(
     step = 400
     for i in range(max_checks):
         activity_id = str(base + (i + 1) * step)
-        text, post_url, relative, author_slug = await fetch_embed_post(client, activity_id, headers)
+        text, post_url, relative, author_slug, absolute = await fetch_embed_post(
+            client, activity_id, headers
+        )
         if not text:
             continue
         if author_slug and author_slug != slug.lower():
             continue
-        if not is_within_since(relative, since):
+        if not is_within_since(relative, since, absolute=absolute):
             continue
         found.append((activity_id, text, relative, post_url))
     return found
@@ -388,9 +435,11 @@ async def fetch_public_posts(
     *,
     router: LinkedInHttpRouter,
     max_posts: int,
+    lookback_days: int = 30,
     google_cse_api_key: str | None = None,
     google_cse_cx: str | None = None,
 ) -> list[ContentMessage]:
+    since = widen_public_since(since, lookback_days)
     slug = profile.profile_slug.lower()
     activity_ids: list[str] = []
     search_slug = slug
@@ -409,7 +458,7 @@ async def fetch_public_posts(
                 search_slug,
                 profile.profile_type,
                 headers,
-                max_ids=max_posts,
+                max_ids=max_posts * 3,
                 google_cse_api_key=google_cse_api_key,
                 google_cse_cx=google_cse_cx,
             )
@@ -439,18 +488,17 @@ async def fetch_public_posts(
         for activity_id in ids[: max_posts * 2]:
             if activity_id in seen_posts:
                 continue
-            text, post_url, relative, author_slug = await fetch_embed_post(client, activity_id, headers)
+            text, post_url, relative, author_slug, absolute = await fetch_embed_post(
+                client, activity_id, headers
+            )
             if not text:
                 continue
             if author_key and author_slug and author_slug != author_key:
                 continue
-            if not is_within_since(relative, since):
+            if not is_within_since(relative, since, absolute=absolute):
                 continue
             seen_posts.add(activity_id)
-            created = datetime.now(tz=UTC)
-            delta = parse_relative_age(relative) if relative else None
-            if delta:
-                created = datetime.now(tz=UTC) - delta
+            created = post_created_at(relative, absolute)
             messages.append(
                 ContentMessage(
                     text=text[:2000],
@@ -485,7 +533,7 @@ async def resolve_profile_from_activity_url(
     activity_id = ids[0]
 
     async def work(_slot, client, headers):
-        _, _, _, author_slug = await fetch_embed_post(client, activity_id, headers)
+        _, _, _, author_slug, _ = await fetch_embed_post(client, activity_id, headers)
         return author_slug
 
     author_slug = await router.run_browser(work)

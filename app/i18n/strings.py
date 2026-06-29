@@ -386,6 +386,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "li_no_profiles": "❌ Выберите хотя бы один профиль.",
         "li_not_configured": "❌ LinkedIn OAuth не настроен (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET).",
         "li_fetch_failed": "❌ Не удалось загрузить посты LinkedIn.",
+        "li_proxy_missing": (
+            "❌ Для LinkedIn нужен прокси.\n"
+            "Задайте OPENAI_PROXY_URL (и OPENAI_PROXY_URL_2) в .env на сервере."
+        ),
         "no_linkedin_posts": "ℹ️ За период «{label}» постов нет.",
         "no_linkedin_posts_no_cse": (
             "ℹ️ За период «{label}» постов не найдено.\n\n"
@@ -785,6 +789,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "li_no_profiles": "❌ Select at least one profile.",
         "li_not_configured": "❌ LinkedIn OAuth is not configured (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET).",
         "li_fetch_failed": "❌ Failed to fetch LinkedIn posts.",
+        "li_proxy_missing": (
+            "❌ LinkedIn requires a proxy.\n"
+            "Set OPENAI_PROXY_URL (and OPENAI_PROXY_URL_2) in .env on the server."
+        ),
         "no_linkedin_posts": "ℹ️ No posts for «{label}».",
         "no_linkedin_posts_no_cse": (
             "ℹ️ No posts found for «{label}».\n\n"

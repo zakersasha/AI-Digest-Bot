@@ -77,6 +77,7 @@ class Settings(BaseSettings):
         description="Optional extra scopes if your app has Community/Marketing API products approved",
     )
     linkedin_proxy_url: str | None = Field(default=None, alias="LINKEDIN_PROXY_URL")
+    linkedin_public_lookback_days: int = Field(default=30, alias="LINKEDIN_PUBLIC_LOOKBACK_DAYS")
     google_cse_api_key: str | None = Field(
         default=None,
         alias="GOOGLE_CSE_API_KEY",
