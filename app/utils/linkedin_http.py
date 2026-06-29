@@ -1,17 +1,36 @@
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
+import asyncio
 import httpx
 
 from app.utils.http_proxy import create_httpx_client, proxy_host
-from app.utils.linkedin_slots import LinkedInSlot, browser_headers
+from app.utils.linkedin_slots import LinkedInSlot, browser_headers, pick_user_agent
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 T = TypeVar("T")
 
+BROWSER_REQUEST_DELAY_SEC = 1.0
+
 _RETRYABLE_STATUS = frozenset({429, 403, 500, 502, 503, 504})
+
+
+class _PacingAsyncClient:
+    """Pauses before each HTTP call during public LinkedIn scraping."""
+
+    def __init__(self, client: httpx.AsyncClient, delay: float = BROWSER_REQUEST_DELAY_SEC) -> None:
+        self._client = client
+        self._delay = delay
+
+    async def get(self, *args, **kwargs):
+        await asyncio.sleep(self._delay)
+        return await self._client.get(*args, **kwargs)
+
+    async def post(self, *args, **kwargs):
+        await asyncio.sleep(self._delay)
+        return await self._client.post(*args, **kwargs)
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -61,22 +80,29 @@ class LinkedInHttpRouter:
         last_exc: Exception | None = None
         n = len(self._slots)
         start = self._pick_start()
+        used_user_agents: set[str] = set()
 
         for offset in range(n):
             slot_idx = (start + offset) % n
             slot = self._slots[slot_idx]
-            headers = browser_headers(slot) if with_headers else {}
+            headers: dict[str, str] = {}
+            if with_headers:
+                user_agent = pick_user_agent(exclude=frozenset(used_user_agents) if used_user_agents else None)
+                used_user_agents.add(user_agent)
+                headers = browser_headers(user_agent)
 
             logger.debug(
                 "linkedin_request_slot",
                 slot=slot.index,
                 proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
                 browser=with_headers,
+                user_agent=headers.get("User-Agent", "")[:48] if headers else None,
             )
 
             try:
                 async with create_httpx_client(slot.proxy_url, self._timeout) as client:
-                    return await coro_fn(slot, client, headers)
+                    http = _PacingAsyncClient(client) if with_headers else client
+                    return await coro_fn(slot, http, headers)
             except Exception as exc:
                 if not _is_retryable(exc) or offset == n - 1:
                     logger.warning(

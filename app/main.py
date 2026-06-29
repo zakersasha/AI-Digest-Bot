@@ -13,7 +13,7 @@ from app.bot.logging_middleware import LoggingMiddleware
 from app.bot.middlewares import ServicesMiddleware
 from app.config import effective_telethon_proxy_url, get_settings
 from app.utils.http_proxy import proxy_host
-from app.utils.linkedin_slots import build_linkedin_slots
+from app.utils.linkedin_slots import build_linkedin_slots, user_agent_pool_size
 from app.db.session import init_db
 from app.utils.logging import get_logger, setup_logging
 from app.web.gmail_oauth import start_oauth_server
@@ -155,7 +155,7 @@ async def run_bot() -> None:
                 slot=slot.index,
                 proxy_enabled=bool(slot.proxy_url),
                 proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
-                user_agent=slot.user_agent[:40],
+                user_agent_pool=user_agent_pool_size(),
             )
         if not any(slot.proxy_url for slot in li_slots):
             logger.warning("linkedin_proxy_missing")
