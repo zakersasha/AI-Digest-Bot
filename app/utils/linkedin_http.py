@@ -5,6 +5,7 @@ import asyncio
 import httpx
 
 from app.utils.http_proxy import create_httpx_client, proxy_host
+from app.utils.linkedin_block import LinkedInBlockedError
 from app.utils.linkedin_slots import LinkedInSlot, browser_headers, pick_user_agent
 from app.utils.logging import get_logger
 
@@ -103,6 +104,23 @@ class LinkedInHttpRouter:
                 async with create_httpx_client(slot.proxy_url, self._timeout) as client:
                     http = _PacingAsyncClient(client) if with_headers else client
                     return await coro_fn(slot, http, headers)
+            except LinkedInBlockedError as exc:
+                if offset == n - 1:
+                    logger.warning(
+                        "linkedin_slot_blocked",
+                        slot=slot.index,
+                        error=str(exc),
+                        proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                    )
+                    raise
+                last_exc = exc
+                next_slot = self._slots[(slot_idx + 1) % n].index
+                logger.warning(
+                    "linkedin_slot_blocked_retry",
+                    slot=slot.index,
+                    next_slot=next_slot,
+                    proxy_host=proxy_host(slot.proxy_url) if slot.proxy_url else None,
+                )
             except Exception as exc:
                 if not _is_retryable(exc) or offset == n - 1:
                     logger.warning(

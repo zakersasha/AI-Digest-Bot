@@ -7,6 +7,7 @@ import httpx
 
 from app.models.linkedin_profile import LinkedInProfile
 from app.services.content_message import ContentMessage
+from app.utils.linkedin_block import LinkedInBlockedError, is_linkedin_blocked
 from app.utils.linkedin_http import LinkedInHttpRouter
 from app.utils.logging import get_logger
 
@@ -93,6 +94,12 @@ def widen_public_since(since: datetime, lookback_days: int) -> datetime:
     return min(since, floor)
 
 
+def _slug_matches(author_slug: str | None, expected: str) -> bool:
+    if not author_slug:
+        return True
+    return author_slug.replace("-", "").lower() == expected.replace("-", "").lower()
+
+
 def extract_author_slug(html: str) -> str | None:
     for pattern in (
         r"linkedin\.com/in/([a-zA-Z0-9\-_%]+)",
@@ -152,6 +159,15 @@ async def fetch_embed_post(
     except httpx.HTTPError as exc:
         logger.warning("linkedin_embed_failed", activity_id=activity_id, error=str(exc))
         return "", "", None, None, None
+
+    if is_linkedin_blocked(response.status_code, response.text):
+        logger.warning(
+            "linkedin_embed_blocked",
+            activity_id=activity_id,
+            status=response.status_code,
+            body_len=len(response.text),
+        )
+        raise LinkedInBlockedError(f"embed blocked status={response.status_code}")
 
     if response.status_code != 200 or len(response.text) < 1000:
         logger.info(
@@ -248,7 +264,7 @@ async def _probe_forward_posts(
         )
         if not text:
             continue
-        if author_slug and author_slug != slug.lower():
+        if not _slug_matches(author_slug, slug):
             continue
         if not is_within_since(relative, since, absolute=absolute):
             continue
@@ -281,11 +297,18 @@ async def scrape_profile_activity_ids(
             logger.warning("linkedin_profile_scrape_failed", url=url, error=str(exc))
             continue
         if response.status_code != 200:
-            logger.info(
-                "linkedin_profile_scrape_skip",
-                url=url,
-                status=response.status_code,
-            )
+            if is_linkedin_blocked(response.status_code, response.text):
+                logger.warning(
+                    "linkedin_profile_blocked",
+                    url=url,
+                    status=response.status_code,
+                )
+            else:
+                logger.info(
+                    "linkedin_profile_scrape_skip",
+                    url=url,
+                    status=response.status_code,
+                )
             continue
         for activity_id in extract_activity_ids(response.text):
             if activity_id in seen:
@@ -312,41 +335,40 @@ async def _search_activity_ids(
     found: list[str] = []
     seen: set[str] = set()
 
-    if profile_type == "person":
-        for activity_id in await scrape_profile_activity_ids(client, slug, headers, max_ids=max_ids):
+    def add_ids(ids: list[str]) -> None:
+        for activity_id in ids:
             if activity_id in seen:
                 continue
             seen.add(activity_id)
             found.append(activity_id)
-        if found:
-            logger.info("linkedin_profile_scrape_ids", slug=slug, count=len(found))
-
-    if len(found) >= max_ids:
-        return found[:max_ids]
 
     if google_cse_api_key and google_cse_cx:
         cse_queries = [
             f"site:linkedin.com/posts/{slug}",
             f"site:linkedin.com/in/{slug}",
         ]
-        for query in cse_queries:
-            for activity_id in await _google_cse_search(
-                client,
-                query,
-                api_key=google_cse_api_key,
-                cx=google_cse_cx,
-                max_ids=max_ids,
-            ):
-                if activity_id in seen:
-                    continue
-                seen.add(activity_id)
-                found.append(activity_id)
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as direct:
+            for query in cse_queries:
+                add_ids(
+                    await _google_cse_search(
+                        direct,
+                        query,
+                        api_key=google_cse_api_key,
+                        cx=google_cse_cx,
+                        max_ids=max_ids,
+                    )
+                )
                 if len(found) >= max_ids:
-                    break
-            if len(found) >= max_ids:
-                break
+                    logger.info("linkedin_cse_discovered", slug=slug, count=len(found))
+                    return found[:max_ids]
+
+    if profile_type == "person" and len(found) < max_ids:
+        add_ids(await scrape_profile_activity_ids(client, slug, headers, max_ids=max_ids))
         if found:
-            return found[:max_ids]
+            logger.info("linkedin_profile_scrape_ids", slug=slug, count=len(found))
+
+    if len(found) >= max_ids:
+        return found[:max_ids]
 
     queries: list[str] = []
     if profile_type == "company":
@@ -357,50 +379,49 @@ async def _search_activity_ids(
         queries.append(f"site:linkedin.com/in/{slug} posts")
 
     def collect_from_html(html: str) -> None:
-        for activity_id in extract_activity_ids(html):
-            if activity_id in seen:
-                continue
-            seen.add(activity_id)
-            found.append(activity_id)
-            if len(found) >= max_ids:
-                return
+        add_ids(extract_activity_ids(html))
+        if len(found) >= max_ids:
+            return
 
-    for query in queries:
-        ddg_url = "https://html.duckduckgo.com/html/"
-        for method, kwargs in (
-            ("GET", {"params": {"q": query}}),
-            ("POST", {"data": {"q": query}}),
-        ):
+    async with httpx.AsyncClient(timeout=30.0, trust_env=False) as direct:
+        for query in queries:
+            ddg_url = "https://html.duckduckgo.com/html/"
+            for method, kwargs in (
+                ("GET", {"params": {"q": query}}),
+                ("POST", {"data": {"q": query}}),
+            ):
+                try:
+                    if method == "GET":
+                        response = await direct.get(ddg_url, headers=headers, **kwargs)
+                    else:
+                        response = await direct.post(ddg_url, headers=headers, **kwargs)
+                    if response.status_code == 200:
+                        collect_from_html(response.text)
+                except httpx.HTTPError:
+                    pass
+                if len(found) >= max_ids:
+                    break
+            if len(found) >= max_ids:
+                break
+
+            bing_url = "https://www.bing.com/search"
             try:
-                if method == "GET":
-                    response = await client.get(ddg_url, headers=headers, **kwargs)
-                else:
-                    response = await client.post(ddg_url, headers=headers, **kwargs)
+                response = await direct.get(bing_url, params={"q": query}, headers=headers)
                 if response.status_code == 200:
                     collect_from_html(response.text)
+                    for match in re.finditer(
+                        r'href="(https://www\.bing\.com/ck/a\?[^"]+)"', response.text
+                    ):
+                        try:
+                            redirect = await direct.get(unescape(match.group(1)), headers=headers)
+                            collect_from_html(str(redirect.url))
+                            collect_from_html(redirect.text)
+                        except httpx.HTTPError:
+                            pass
             except httpx.HTTPError:
                 pass
             if len(found) >= max_ids:
                 break
-        if len(found) >= max_ids:
-            break
-
-        bing_url = "https://www.bing.com/search"
-        try:
-            response = await client.get(bing_url, params={"q": query}, headers=headers)
-            if response.status_code == 200:
-                collect_from_html(response.text)
-                for match in re.finditer(r'href="(https://www\.bing\.com/ck/a\?[^"]+)"', response.text):
-                    try:
-                        redirect = await client.get(unescape(match.group(1)), headers=headers)
-                        collect_from_html(str(redirect.url))
-                        collect_from_html(redirect.text)
-                    except httpx.HTTPError:
-                        pass
-        except httpx.HTTPError:
-            pass
-        if len(found) >= max_ids:
-            break
 
     logger.info("linkedin_public_discovered", slug=slug, count=len(found))
     return found[:max_ids]
@@ -485,6 +506,7 @@ async def fetch_public_posts(
                 if activity_id not in ids:
                     ids.insert(0, activity_id)
 
+        embed_failures = 0
         for activity_id in ids[: max_posts * 2]:
             if activity_id in seen_posts:
                 continue
@@ -492,8 +514,9 @@ async def fetch_public_posts(
                 client, activity_id, headers
             )
             if not text:
+                embed_failures += 1
                 continue
-            if author_key and author_slug and author_slug != author_key:
+            if author_key and not _slug_matches(author_slug, author_key):
                 continue
             if not is_within_since(relative, since, absolute=absolute):
                 continue
@@ -510,6 +533,14 @@ async def fetch_public_posts(
             )
             if len(messages) >= max_posts:
                 break
+
+        if not messages and ids and embed_failures >= max(3, len(ids) // 2):
+            raise LinkedInBlockedError(
+                f"found {len(ids)} ids but embeds failed ({embed_failures} attempts)"
+            )
+
+        if not ids:
+            raise LinkedInBlockedError("no activity ids — LinkedIn scrape blocked, configure GOOGLE_CSE_*")
 
         logger.info(
             "linkedin_public_fetched",

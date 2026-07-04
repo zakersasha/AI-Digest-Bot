@@ -18,8 +18,10 @@ from app.repositories.user_repository import UserRepository
 from app.services.content_message import ContentMessage
 from app.services.frequency import digest_content_since
 from app.services.gmail_service import GmailService
+from app.services.yandex_mail_service import YandexMailService
 from app.services.linkedin_service import LinkedInService
 from app.services.linkedin_public import fetch_public_posts
+from app.utils.linkedin_block import LinkedInBlockedError
 from app.services.slack_service import SlackService
 from app.services.message_selection import interleave_messages_by_source, select_balanced_messages_by_source
 from app.services.platform_readiness import can_deliver_platform
@@ -46,6 +48,7 @@ class DigestService:
         self._user_repo = UserRepository(session)
         self._platform_repo = PlatformSettingsRepository(session)
         self._gmail = GmailService(settings)
+        self._yandex = YandexMailService(settings)
         self._slack = SlackService(settings)
         self._linkedin = LinkedInService(settings)
         self._linkedin_repo = LinkedInProfileRepository(session)
@@ -66,10 +69,12 @@ class DigestService:
             return await self._generate_telegram_digest(user, frequency, language)
         if platform == "gmail":
             return await self._generate_gmail_digest(user, frequency, language)
+        if platform == "yandex":
+            return await self._generate_yandex_digest(user, frequency, language)
         if platform == "slack":
             return await self._generate_slack_digest(user, frequency, language)
         if platform == "linkedin":
-            return await self._generate_linkedin_digest(user, frequency, language)
+            raise ValueError(t(language, "platform_linkedin_locked"))
         raise ValueError(t(language, "platform_unavailable"))
 
     async def generate_scheduled(
@@ -173,6 +178,50 @@ class DigestService:
         return await self._build_digest(
             user.id,
             "gmail",
+            frequency,
+            language,
+            messages,
+        )
+
+    async def _generate_yandex_digest(self, user: User, frequency: str, language: str) -> str:
+        if not self._user_repo.has_yandex(user):
+            raise ValueError(t(language, "yandex_not_linked"))
+
+        if not self._yandex.is_configured():
+            raise ValueError(t(language, "yandex_not_configured"))
+
+        since = digest_content_since(frequency)
+        label = frequency_label(language, frequency)
+
+        try:
+            messages, tokens = await self._yandex.fetch_messages(
+                user.yandex_tokens_encrypted,
+                since,
+                self._settings.yandex_max_messages,
+            )
+            await self._user_repo.update_yandex_tokens(user.id, tokens)
+            await self._session.flush()
+        except ValueError as exc:
+            reason = str(exc)
+            if reason == "yandex_token_expired":
+                await self._user_repo.clear_yandex(user.telegram_id)
+                await self._session.commit()
+                raise ValueError(t(language, "yandex_token_expired")) from exc
+            if reason == "yandex_token_invalid":
+                await self._user_repo.clear_yandex(user.telegram_id)
+                await self._session.commit()
+                raise ValueError(t(language, "yandex_token_invalid")) from exc
+            raise ValueError(t(language, "yandex_not_linked")) from exc
+        except Exception as exc:
+            logger.error("yandex_fetch_failed", user_id=user.id, error=str(exc))
+            raise RuntimeError(t(language, "yandex_fetch_failed")) from exc
+
+        if not messages:
+            raise ValueError(t(language, "no_yandex_emails", label=label))
+
+        return await self._build_digest(
+            user.id,
+            "yandex",
             frequency,
             language,
             messages,
@@ -314,6 +363,8 @@ class DigestService:
                             error=str(exc),
                         )
                         api_errors.append(f"{profile.profile_slug}: {exc}")
+                    except LinkedInBlockedError as exc:
+                        raise ValueError(t(language, "li_blocked")) from exc
             else:
                 for profile in profiles:
                     try:
@@ -326,6 +377,15 @@ class DigestService:
                             error=str(exc),
                         )
                         api_errors.append(f"{profile.profile_slug}: {exc}")
+                    except LinkedInBlockedError as exc:
+                        logger.warning(
+                            "linkedin_public_blocked",
+                            slug=profile.profile_slug,
+                            error=str(exc),
+                        )
+                        raise ValueError(t(language, "li_blocked")) from exc
+        except LinkedInBlockedError as exc:
+            raise ValueError(t(language, "li_blocked")) from exc
         except httpx.HTTPError as exc:
             logger.error("linkedin_fetch_failed", user_id=user.id, error=str(exc))
             raise RuntimeError(t(language, "li_fetch_failed")) from exc
@@ -387,6 +447,9 @@ class DigestService:
         for msg in selected:
             if msg.source.startswith("email:"):
                 source_label = msg.source.removeprefix("email:")
+                items.append((source_label, msg.post_url, msg.text))
+            elif msg.source.startswith("yandex:"):
+                source_label = msg.source.removeprefix("yandex:")
                 items.append((source_label, msg.post_url, msg.text))
             elif msg.source.startswith("linkedin:"):
                 source_label = msg.source.removeprefix("linkedin:")

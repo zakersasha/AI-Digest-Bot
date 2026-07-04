@@ -8,6 +8,7 @@ from app.ai.openai_urls import resolve_openai_base_url
 from app.ai.prompts import (
     COMBINED_DIGEST_PROMPT,
     GMAIL_DIGEST_PROMPT,
+    YANDEX_DIGEST_PROMPT,
     LINKEDIN_DIGEST_PROMPT,
     SLACK_DIGEST_PROMPT,
     TELEGRAM_DIGEST_PROMPT,
@@ -189,6 +190,7 @@ class OpenAIProvider(AIProvider):
         joined = "\n\n".join(message_blocks)
         templates = {
             "gmail": GMAIL_DIGEST_PROMPT,
+            "yandex": YANDEX_DIGEST_PROMPT,
             "linkedin": LINKEDIN_DIGEST_PROMPT,
             "slack": SLACK_DIGEST_PROMPT,
             "telegram": TELEGRAM_DIGEST_PROMPT,

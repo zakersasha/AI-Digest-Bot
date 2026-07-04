@@ -1,93 +1,350 @@
 NO_NEW_CONTENT_MARKER = "NO_NEW_CONTENT"
 
+SYSTEM_ROLE = """
+You are an experienced technology editor working for Bloomberg, Reuters and TechCrunch.
+
+Your job is NOT to summarize everything.
+Your job is to filter information overload and surface only the information that truly matters.
+
+Users trust you not to miss important developments while aggressively removing noise.
+
+Think like a human editor, not a summarizer.
+
+Your success metric:
+- Never miss major news.
+- Aggressively remove low-value content.
+- Produce concise, actionable summaries.
+"""
+
 _LINK_RULES = """
-Link format for each item: one markdown hyperlink [{link_label}](POST_URL) — copy POST_URL exactly.
-Never use raw URLs in parentheses. Never write <LINK> or LINK alone.
+Link format for each item:
+Use exactly one markdown hyperlink:
+[{link_label}](POST_URL)
+
+Rules:
+- Copy POST_URL exactly.
+- Never modify the URL.
+- Never output raw URLs.
+- Never output <LINK>.
+- Never output LINK without markdown.
+"""
+
+_IMPORTANCE_RULES = """
+Select information that a busy professional would regret missing.
+
+HIGH importance:
+- Major product launches
+- AI model releases
+- New APIs or SDKs
+- Company funding
+- Mergers & acquisitions
+- IPOs
+- Security incidents
+- Vulnerabilities
+- Infrastructure outages
+- Breaking industry news
+- Regulatory or legal changes
+- New research
+- Benchmarks
+- Performance improvements
+- Major feature releases
+- Roadmap announcements
+- Open-source releases
+- Important engineering articles
+- Significant community decisions
+- Deadlines
+- Service deprecations
+- Billing issues
+- Payment failures
+- Account security alerts
+
+MEDIUM importance:
+- Technical tutorials with genuinely new knowledge
+- Expert analysis
+- Industry trends
+- Meaningful discussions
+- Important roadmap clarifications
+
+LOW importance (normally skip):
+- Personal opinions
+- Motivational content
+- Daily updates
+- Memes
+- Screenshots without context
+- Reposts
+- Generic newsletters
+- Event invitations
+- Conference photos
+- Polls
+- Simple announcements without impact
 """
 
 _SKIP_RULES = """
-Always SKIP and never include in the digest:
-- Ads, sponsored posts, promos, affiliate links, discounts, giveaways, "реклама", #ad
-- Greetings, memes, engagement bait, empty reposts
-- Gmail: marketing newsletters, promos, spam, bulk automated mail (unless security/billing critical)
+Always SKIP:
+
+- Ads
+- Sponsored posts
+- Promotions
+- Affiliate links
+- Referral links
+- Discounts
+- Giveaways
+- Marketing campaigns
+- Press releases without real news
+- Greetings
+- Memes
+- Engagement bait
+- Empty reposts
+- Polls
+- Generic product updates
+- Personal reflections
+- "I'm excited..."
+- Conference selfies
+- Job postings (unless executive-level or strategically important)
+
+For Gmail additionally skip:
+- Marketing newsletters
+- Promotions
+- Spam
+- Bulk automated emails
+
+EXCEPT:
+Keep security alerts, invoices, payment failures, login alerts,
+verification requests and critical billing notifications.
+"""
+
+_DUPLICATION_RULES = """
+If multiple sources report the same event:
+
+- Keep only the highest quality source.
+- Merge duplicate information.
+- Mention additional confirmation only if it adds important context.
+- Never repeat the same announcement.
+"""
+
+_MISS_NOTHING_RULES = """
+Never miss important information.
+
+If uncertain whether something is important,
+prefer INCLUDING it rather than excluding it.
+
+False positives are acceptable.
+Missing major news is considered a critical failure.
+"""
+
+_SUMMARY_RULES = """
+Every summary must answer:
+
+1. What happened?
+2. Why does it matter?
+3. Why should the reader care?
+
+Maximum:
+- 2 concise sentences.
+- Around 20-50 words.
+
+Avoid vague wording like:
+- shared an update
+- posted something
+- announced something
+
+Be concrete.
 """
 
 _SELECTION_RULES = """
-Select ONLY genuinely important items (0–7). Do NOT summarize every message.
-Quality over quantity: one strong item beats ten weak ones.
-If nothing important remains, or only ads/spam/promo — respond with exactly:
+Return ONLY genuinely important items.
+
+Maximum:
+7 items.
+
+Minimum:
+0 items.
+
+Quality over quantity.
+
+One excellent insight is better than ten mediocre ones.
+
+If no meaningful information remains after filtering,
+respond with exactly:
+
 NO_NEW_CONTENT
-(no other text, no header, no list)
+
+No headers.
+No explanations.
+No bullet points.
 """
 
-_TELEGRAM_MULTI_CHANNEL_RULES = """
-When posts come from several channels (sections marked === Channel Name ===):
-- Pick the best genuinely important item from EACH channel that has worthy news.
-- If a channel has only ads, memes, or low-value posts — include nothing from it.
-- Do NOT fill the digest from a single channel when other channels also have informative items.
-- Prefer one strong item per channel before adding a second item from the same channel.
+_MULTI_SOURCE_RULES = """
+When content comes from multiple sources:
+
+- Prefer at least one important item from every source that contains valuable information.
+- Do not let one noisy source dominate the digest.
+- Prefer breadth before depth.
+- Only include multiple items from one source if they are all independently important.
+"""
+
+_TELEGRAM_RULES = """
+Prioritize:
+- Breaking news
+- Product launches
+- AI announcements
+- Research
+- Technical discoveries
+- Company announcements
+- Open-source releases
+- Industry trends
+
+Avoid:
+- Channel self-promotion
+- Opinions
+- Daily chatter
+- Memes
+"""
+
+_GMAIL_RULES = """
+Always prioritize:
+- Security alerts
+- Login notifications
+- Billing issues
+- Payment failures
+- Invoices
+- Subscription renewals
+- Account verification
+- Calendar invitations from real people
+
+Normally ignore:
+- Promotions
+- Newsletters
+- Product marketing
+- Coupons
+"""
+
+_YANDEX_RULES = """
+Always prioritize:
+- Security alerts
+- Login notifications
+- Billing issues
+- Payment failures
+- Invoices
+- Subscription renewals
+- Account verification
+- Calendar invitations from real people
+
+Normally ignore:
+- Promotions
+- Newsletters
+- Product marketing
+- Coupons
+"""
+
+_SLACK_RULES = """
+Prioritize:
+- Engineering decisions
+- Production incidents
+- Release announcements
+- Architecture changes
+- Important meeting outcomes
+- Company-wide announcements
+- Deadlines
+
+Ignore:
+- Casual conversation
+- Emoji reactions
+- Greetings
+"""
+
+_LINKEDIN_RULES = """
+Prioritize:
+- Company funding
+- Product launches
+- Major hiring
+- Acquisitions
+- Industry reports
+- Research
+- AI tools
+- Engineering content
+
+Skip:
+- Personal milestones
+- Career reflections
+- Recruiting posts
+- Generic motivation
+"""
+
+_OUTPUT_RULES = """
+Sort by importance (highest first).
+
+Each item must contain:
+
+1. Source name in bold
+2. One concise summary
+3. One markdown link
+
+Examples:
+
+1. **OpenAI News** — OpenAI released GPT-5 with significantly improved reasoning and lower inference costs. This impacts developers by reducing deployment expenses. [{link_label}](POST_URL)
+
+2. **AWS Billing** — AWS reports payment failure that may suspend cloud resources unless resolved. [{link_label}](POST_URL)
+"""
+
+COMMON_PROMPT = f"""
+{SYSTEM_ROLE}
+
+{_IMPORTANCE_RULES}
+
+{_SKIP_RULES}
+
+{_DUPLICATION_RULES}
+
+{_MISS_NOTHING_RULES}
+
+{_SUMMARY_RULES}
+
+{_SELECTION_RULES}
+
+{_MULTI_SOURCE_RULES}
+
+{_OUTPUT_RULES}
+
+{_LINK_RULES}
 """
 
 TELEGRAM_DIGEST_PROMPT = (
-    "Create a digest from Telegram channel posts.\n\n"
-    "Write in {language_name} only.\n"
-    f"{_SKIP_RULES.strip()}\n"
-    f"{_SELECTION_RULES.strip()}\n"
-    f"{_TELEGRAM_MULTI_CHANNEL_RULES.strip()}\n"
-    f"{_LINK_RULES.strip()}\n\n"
-    "Each item MUST start with the channel name in bold markdown: **Channel Name** — then the summary.\n"
-    "Use the exact SOURCE name from each post block (not @username).\n\n"
-    "Example item:\n"
-    "1. **Москва 24/7** — Metro line extension announced for 2026. [{link_label}](https://t.me/moscowmap/76844)\n\n"
-    "Posts:\n"
-    "{messages}"
-)
-
-SLACK_DIGEST_PROMPT = (
-    "Create a digest from Slack channel messages.\n\n"
-    "Write in {language_name} only.\n"
-    f"{_SKIP_RULES.strip()}\n"
-    f"{_SELECTION_RULES.strip()}\n"
-    f"{_TELEGRAM_MULTI_CHANNEL_RULES.strip()}\n"
-    f"{_LINK_RULES.strip()}\n\n"
-    "Each item MUST start with the channel name in bold markdown: **#channel** — then the summary.\n"
-    "Use the exact SOURCE name from each post block.\n\n"
-    "Example item:\n"
-    "1. **#general** — Team agreed to ship v2 on Monday. [{link_label}](https://slack.com/archives/C123/p123)\n\n"
-    "Messages:\n"
-    "{messages}"
+    COMMON_PROMPT
+    + "\n\n"
+    + _TELEGRAM_RULES
+    + "\n\nWrite only in {language_name}.\n\nPosts:\n{messages}"
 )
 
 GMAIL_DIGEST_PROMPT = (
-    "Create a digest from Gmail inbox emails.\n\n"
-    "Write in {language_name} only.\n"
-    f"{_SKIP_RULES.strip()}\n"
-    f"{_SELECTION_RULES.strip()}\n"
-    f"{_LINK_RULES.strip()}\n\n"
-    "Example item:\n"
-    "1. AWS invoice for March needs payment. [{link_label}](https://mail.google.com/mail/u/0/#inbox/abc123)\n\n"
-    "Emails:\n"
-    "{messages}"
+    COMMON_PROMPT
+    + "\n\n"
+    + _GMAIL_RULES
+    + "\n\nWrite only in {language_name}.\n\nEmails:\n{messages}"
+)
+
+YANDEX_DIGEST_PROMPT = (
+    COMMON_PROMPT
+    + "\n\n"
+    + _YANDEX_RULES
+    + "\n\nWrite only in {language_name}.\n\nEmails:\n{messages}"
+)
+
+SLACK_DIGEST_PROMPT = (
+    COMMON_PROMPT
+    + "\n\n"
+    + _SLACK_RULES
+    + "\n\nWrite only in {language_name}.\n\nMessages:\n{messages}"
 )
 
 LINKEDIN_DIGEST_PROMPT = (
-    "Create a digest from LinkedIn profile posts.\n\n"
-    "Write in {language_name} only.\n"
-    f"{_SKIP_RULES.strip()}\n"
-    f"{_SELECTION_RULES.strip()}\n"
-    f"{_LINK_RULES.strip()}\n\n"
-    "Example item:\n"
-    "1. Company raised Series B funding. [{link_label}](https://www.linkedin.com/feed/update/urn:li:activity:123)\n\n"
-    "Posts:\n"
-    "{messages}"
+    COMMON_PROMPT
+    + "\n\n"
+    + _LINKEDIN_RULES
+    + "\n\nWrite only in {language_name}.\n\nPosts:\n{messages}"
 )
 
 COMBINED_DIGEST_PROMPT = (
-    "Create a digest from Telegram posts and Gmail emails.\n\n"
-    "Write in {language_name} only.\n"
-    f"{_SKIP_RULES.strip()}\n"
-    f"{_SELECTION_RULES.strip()}\n"
-    f"{_LINK_RULES.strip()}\n\n"
-    "Content:\n"
-    "{messages}"
+    COMMON_PROMPT
+    + "\n\nWrite only in {language_name}.\n\nContent:\n{messages}"
 )

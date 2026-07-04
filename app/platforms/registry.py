@@ -7,13 +7,15 @@ class PlatformDef:
     label_key: str
     emoji: str
     available: bool = True
+    locked: bool = False
 
 
 PLATFORMS: tuple[PlatformDef, ...] = (
     PlatformDef("telegram", "platform_telegram", "📱"),
     PlatformDef("gmail", "platform_gmail", "📧"),
+    PlatformDef("yandex", "platform_yandex", "📬"),
     PlatformDef("slack", "platform_slack", "💬"),
-    PlatformDef("linkedin", "platform_linkedin", "💼"),
+    PlatformDef("linkedin", "platform_linkedin", "💼", available=False, locked=True),
 )
 
 

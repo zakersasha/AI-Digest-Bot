@@ -13,8 +13,10 @@ from app.bot.keyboards import (
     CB_FLOW_SCHEDULE,
     CB_FREQ_BACK,
     CB_GMAIL_CONTINUE,
+    CB_YANDEX_CONTINUE,
     CB_TG_CONTINUE,
     CB_PLATFORM_GMAIL,
+    CB_PLATFORM_YANDEX,
     CB_PLATFORM_SLACK,
     CB_PLATFORM_LINKEDIN,
     CB_PLATFORM_TELEGRAM,
@@ -26,6 +28,7 @@ from app.bot.keyboards import (
 )
 from app.bot.platform_screens import (
     show_gmail_screen,
+    show_yandex_screen,
     show_linkedin_screen,
     show_platforms_menu,
     show_schedule_frequency,
@@ -99,12 +102,12 @@ async def cb_open_gmail(callback: CallbackQuery, session: AsyncSession, state: F
         )
 
 
-@router.callback_query(F.data == CB_PLATFORM_LINKEDIN)
-async def cb_open_linkedin(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+@router.callback_query(F.data.in_({CB_PLATFORM_YANDEX, CB_YANDEX_CONTINUE}))
+async def cb_open_yandex(callback: CallbackQuery, session: AsyncSession, state: FSMContext) -> None:
     lang = await resolve_lang(session, callback.from_user.id)
     await callback.answer()
     if callback.message:
-        await show_linkedin_screen(
+        await show_yandex_screen(
             callback.message,
             state,
             session,
@@ -112,6 +115,12 @@ async def cb_open_linkedin(callback: CallbackQuery, state: FSMContext, session: 
             callback.from_user.id,
             from_user_action=True,
         )
+
+
+@router.callback_query(F.data == CB_PLATFORM_LINKEDIN)
+async def cb_open_linkedin(callback: CallbackQuery, state: FSMContext, session: AsyncSession) -> None:
+    lang = await resolve_lang(session, callback.from_user.id)
+    await callback.answer(t(lang, "platform_linkedin_locked"), show_alert=True)
 
 
 @router.callback_query(F.data.in_({CB_PLATFORM_SLACK, CB_SLACK_CONTINUE}))
@@ -165,6 +174,15 @@ async def cb_frequency(callback: CallbackQuery, session: AsyncSession, state: FS
             await show_telegram_screen(callback.message, state, session, lang, callback.from_user.id)
         elif platform == "gmail":
             await show_gmail_screen(
+                callback.message,
+                state,
+                session,
+                lang,
+                callback.from_user.id,
+                from_user_action=True,
+            )
+        elif platform == "yandex":
+            await show_yandex_screen(
                 callback.message,
                 state,
                 session,
@@ -287,6 +305,16 @@ async def cb_time(callback: CallbackQuery, session: AsyncSession, state: FSMCont
         )
     elif platform == "gmail":
         await show_gmail_screen(
+            callback.message,
+            state,
+            session,
+            lang,
+            callback.from_user.id,
+            status_line=t(lang, "schedule_saved"),
+            from_user_action=True,
+        )
+    elif platform == "yandex":
+        await show_yandex_screen(
             callback.message,
             state,
             session,

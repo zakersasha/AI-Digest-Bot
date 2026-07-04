@@ -148,6 +148,44 @@ class UserRepository:
     def has_gmail(self, user: User) -> bool:
         return bool(user.gmail_tokens_encrypted)
 
+    async def save_yandex_tokens(
+        self,
+        telegram_id: int,
+        tokens: dict,
+        email: str,
+    ) -> User | None:
+        from app.services.yandex_mail_service import YandexMailService
+
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.yandex_tokens_encrypted = YandexMailService.encrypt_tokens(tokens)
+        user.yandex_email = email
+        user.yandex_linked_at = datetime.now(tz=UTC)
+        await self._session.flush()
+        return user
+
+    async def update_yandex_tokens(self, user_id: int, tokens: dict) -> None:
+        from app.services.yandex_mail_service import YandexMailService
+
+        result = await self._session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one()
+        user.yandex_tokens_encrypted = YandexMailService.encrypt_tokens(tokens)
+        await self._session.flush()
+
+    async def clear_yandex(self, telegram_id: int) -> User | None:
+        user = await self.get_by_telegram_id(telegram_id)
+        if not user:
+            return None
+        user.yandex_tokens_encrypted = None
+        user.yandex_email = None
+        user.yandex_linked_at = None
+        await self._session.flush()
+        return user
+
+    def has_yandex(self, user: User) -> bool:
+        return bool(user.yandex_tokens_encrypted)
+
     async def save_slack_tokens(
         self,
         telegram_id: int,

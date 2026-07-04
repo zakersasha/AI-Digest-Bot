@@ -25,7 +25,7 @@ _PROGRESS_KEYS = (
 
 
 def _progress_keys(platform: str) -> tuple[str, str, str]:
-    if platform == "gmail":
+    if platform in ("gmail", "yandex"):
         return (
             "digest_progress_fetch_gmail",
             "digest_progress_read_gmail",

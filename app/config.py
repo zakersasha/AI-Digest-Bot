@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     gmail_oauth_port: int = Field(default=8080, alias="GMAIL_OAUTH_PORT")
     gmail_max_messages: int = Field(default=50, alias="GMAIL_MAX_MESSAGES")
 
+    yandex_client_id: str = Field(default="", alias="YANDEX_CLIENT_ID")
+    yandex_client_secret: str = Field(default="", alias="YANDEX_CLIENT_SECRET")
+    yandex_redirect_uri: str = Field(
+        default="https://brieflybot.pro/oauth/yandex/callback",
+        alias="YANDEX_REDIRECT_URI",
+    )
+    yandex_max_messages: int = Field(default=50, alias="YANDEX_MAX_MESSAGES")
+
     slack_client_id: str = Field(default="", alias="SLACK_CLIENT_ID")
     slack_client_secret: str = Field(default="", alias="SLACK_CLIENT_SECRET")
     slack_redirect_uri: str = Field(
@@ -93,6 +101,10 @@ class Settings(BaseSettings):
         uri = self.gmail_redirect_uri.lower()
         return "localhost" in uri or "127.0.0.1" in uri
 
+    def yandex_redirect_is_localhost(self) -> bool:
+        uri = self.yandex_redirect_uri.lower()
+        return "localhost" in uri or "127.0.0.1" in uri
+
     def slack_redirect_is_localhost(self) -> bool:
         uri = self.slack_redirect_uri.lower()
         return "localhost" in uri or "127.0.0.1" in uri
@@ -106,6 +118,8 @@ class Settings(BaseSettings):
         "telegram_proxy_url",
         "gmail_client_id",
         "gmail_client_secret",
+        "yandex_client_id",
+        "yandex_client_secret",
         "slack_client_id",
         "slack_client_secret",
         "linkedin_client_id",

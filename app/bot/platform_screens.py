@@ -10,7 +10,11 @@ from app.bot.keyboards import (
     CB_GMAIL_CHECK,
     CB_GMAIL_DISCONNECT,
     CB_GMAIL_PASTE,
+    CB_YANDEX_CHECK,
+    CB_YANDEX_DISCONNECT,
+    CB_YANDEX_PASTE,
     CB_PLATFORM_GMAIL,
+    CB_PLATFORM_YANDEX,
     CB_PLATFORM_SLACK,
     CB_LI_ADD_LINKS,
     CB_LI_DISCONNECT,
@@ -56,6 +60,7 @@ from app.repositories.slack_channel_repository import SlackChannelRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.user_repository import UserRepository
 from app.services.gmail_service import GmailService
+from app.services.yandex_mail_service import YandexMailService
 from app.services.linkedin_service import LinkedInService
 from app.services.slack_service import SlackService
 from app.services.platform_readiness import is_platform_scheduled
@@ -115,6 +120,13 @@ async def _platform_status_line(
     if platform_id == "gmail":
         if UserRepository(session).has_gmail(user):
             conn = t(lang, "platform_status_gmail", email=user.gmail_email or "Gmail")
+        else:
+            conn = t(lang, "platform_not_connected")
+        return f"{conn} · {schedule}"
+
+    if platform_id == "yandex":
+        if UserRepository(session).has_yandex(user):
+            conn = t(lang, "platform_status_yandex", email=user.yandex_email or "Yandex")
         else:
             conn = t(lang, "platform_not_connected")
         return f"{conn} · {schedule}"
@@ -181,17 +193,30 @@ async def show_platforms_menu(
         lines = [t(lang, "platforms_menu")]
     rows: list[list[InlineKeyboardButton]] = []
 
-    for pdef in available_platforms():
+    for pdef in PLATFORMS:
+        label = t(lang, pdef.label_key)
+        if pdef.locked:
+            lines.append(f"🔒 {pdef.emoji} <b>{label}</b> — {t(lang, 'platform_linkedin_locked')}")
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=f"🔒 {pdef.emoji} {label}",
+                        callback_data=CB_PLATFORM_LINKEDIN,
+                    )
+                ]
+            )
+            continue
+        if not pdef.available:
+            continue
         status = await _platform_status_line(session, user, lang, pdef.id)
-        lines.append(f"{pdef.emoji} <b>{t(lang, pdef.label_key)}</b> — {status}")
+        lines.append(f"{pdef.emoji} <b>{label}</b> — {status}")
         cb = {
             "telegram": CB_PLATFORM_TELEGRAM,
             "gmail": CB_PLATFORM_GMAIL,
+            "yandex": CB_PLATFORM_YANDEX,
             "slack": CB_PLATFORM_SLACK,
         }.get(pdef.id, f"plat:{pdef.id}")
-        rows.append(
-            [InlineKeyboardButton(text=f"{pdef.emoji} {t(lang, pdef.label_key)}", callback_data=cb)]
-        )
+        rows.append([InlineKeyboardButton(text=f"{pdef.emoji} {label}", callback_data=cb)])
 
     text = "\n\n".join(lines)
     markup = InlineKeyboardMarkup(inline_keyboard=rows)
@@ -603,6 +628,80 @@ def _format_gmail_status(user, lang: str) -> str:
     if user.gmail_tokens_encrypted:
         return t(lang, "gmail_status_linked", email=user.gmail_email or "Gmail")
     return t(lang, "gmail_status_not_linked")
+
+
+def _yandex_keyboard(lang: str, telegram_id: int, user, linked: bool) -> InlineKeyboardMarkup:
+    settings = get_settings()
+    yandex = YandexMailService(settings)
+    rows: list[list[InlineKeyboardButton]] = []
+
+    if not linked and yandex.is_configured():
+        auth_url = yandex.build_auth_url(create_oauth_state(telegram_id))
+        rows.append([InlineKeyboardButton(text=t(lang, "btn_yandex_connect"), url=auth_url)])
+        if settings.yandex_redirect_is_localhost():
+            rows.append(
+                [
+                    InlineKeyboardButton(text=t(lang, "btn_yandex_paste"), callback_data=CB_YANDEX_PASTE),
+                    InlineKeyboardButton(text=t(lang, "btn_yandex_check"), callback_data=CB_YANDEX_CHECK),
+                ]
+            )
+    elif linked:
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_yandex_disconnect"), callback_data=CB_YANDEX_DISCONNECT)]
+        )
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_schedule"), callback_data=f"{CB_SCHEDULE_PREFIX}yandex")]
+        )
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_test_digest"), callback_data=f"{CB_TEST_DIGEST_PREFIX}yandex")]
+        )
+
+    rows.append([InlineKeyboardButton(text=t(lang, "btn_back"), callback_data=CB_ACTION_MENU)])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def show_yandex_screen(
+    target: Message | CallbackQuery,
+    state: FSMContext,
+    session: AsyncSession,
+    lang: str,
+    telegram_id: int,
+    *,
+    status_line: str | None = None,
+    from_user_action: bool = False,
+) -> None:
+    user = await UserRepository(session).get_by_telegram_id(telegram_id)
+    if not user:
+        return
+    await session.refresh(user)
+
+    linked = UserRepository(session).has_yandex(user)
+    settings = await PlatformSettingsRepository(session).get(user.id, "yandex")
+    text = f"<b>{t(lang, 'platform_yandex')}</b>\n\n{t(lang, 'yandex_screen_hint')}\n\n"
+    text += _format_yandex_status(user, lang)
+    if linked:
+        text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"
+    if status_line:
+        text += f"\n\n{status_line}"
+
+    await state.set_state(OnboardingStates.connecting_yandex)
+    await state.update_data(active_platform="yandex")
+    markup = _yandex_keyboard(lang, telegram_id, user, linked)
+    data = await state.get_data()
+    if from_user_action:
+        await _delete_screen(target.bot, state)
+        await bind_screen(state, target)
+        await edit_screen(target, state, text, markup)
+    elif data.get("screen_chat_id") and data.get("screen_message_id"):
+        await edit_by_state(target.bot, state, text, markup)
+    else:
+        await replace_screen(target, state, text, markup)
+
+
+def _format_yandex_status(user, lang: str) -> str:
+    if user.yandex_tokens_encrypted:
+        return t(lang, "yandex_status_linked", email=user.yandex_email or "Yandex")
+    return t(lang, "yandex_status_not_linked")
 
 
 def _slack_keyboard(lang: str, telegram_id: int, user, linked: bool, channel_count: int) -> InlineKeyboardMarkup:

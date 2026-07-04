@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.utils.oauth_state import create_signed_oauth_state, verify_signed_oauth_state
 from app.web.linkedin_oauth import linkedin_oauth_callback
 from app.web.slack_oauth import slack_oauth_callback
+from app.web.yandex_oauth import yandex_oauth_callback
 
 logger = get_logger(__name__)
 
@@ -122,6 +123,7 @@ def create_oauth_app(
     app["bot_username"] = bot_username
     app["storage"] = storage
     app.router.add_get("/oauth/gmail/callback", gmail_oauth_callback)
+    app.router.add_get("/oauth/yandex/callback", yandex_oauth_callback)
     app.router.add_get("/oauth/slack/callback", slack_oauth_callback)
     app.router.add_get("/oauth/linkedin/callback", linkedin_oauth_callback)
     return app

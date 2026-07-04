@@ -8,8 +8,10 @@ python scripts/parse_linkedin_profile.py
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from html import unescape
@@ -18,12 +20,16 @@ from urllib.parse import unquote, urlparse
 import httpx
 
 # --- настройки ---
-PROFILE_URL = "https://www.linkedin.com/in/sebastian-starke-b281a6148"
+PROFILE_URL = "https://www.linkedin.com/in/elenaverna/"
 PROXY = "http://proxy_user:97vAN1S@92.112.181.200:3128"
 
 DAYS = 30
 MAX_POSTS = 20
 VERBOSE = True
+# Google CSE — ищет посты без обращения к linkedin.com (100 запросов/день бесплатно)
+GOOGLE_CSE_API_KEY = ""  # или os.environ / .env
+GOOGLE_CSE_CX = ""
+PROXY_2 = ""  # второй прокси для ротации
 # -----------------
 
 UTC = timezone.utc
@@ -156,6 +162,18 @@ def extract_meta_description(html: str) -> str:
     return ""
 
 
+class LinkedInBlocked(Exception):
+    pass
+
+
+def is_linkedin_blocked(status_code: int, html: str) -> bool:
+    if status_code in (401, 403, 429, 999):
+        return True
+    sample = (html or "")[:80_000].lower()
+    markers = ("authwall", "session_redirect", "sign in to linkedin", "checkpoint")
+    return any(m in sample for m in markers)
+
+
 def extract_relative_time(html: str) -> str | None:
     match = re.search(r"<time[^>]*>(.*?)</time>", html, re.I | re.S)
     if not match:
@@ -171,7 +189,16 @@ def fetch_embed_post(client: httpx.Client, activity_id: str) -> tuple[str, str, 
         response = client.get(url, headers=BROWSER_HEADERS)
     except httpx.HTTPError:
         return "", "", None, None
+    if is_linkedin_blocked(response.status_code, response.text):
+        if VERBOSE:
+            print(f"[embed] {activity_id} -> BLOCKED HTTP {response.status_code}", file=sys.stderr)
+        raise LinkedInBlocked(f"embed {activity_id} status={response.status_code}")
     if response.status_code != 200 or len(response.text) < 1000:
+        if VERBOSE:
+            print(
+                f"[embed] {activity_id} -> HTTP {response.status_code}, len={len(response.text)}",
+                file=sys.stderr,
+            )
         return "", "", None, None
     html = response.text
     text = extract_meta_description(html)
@@ -198,7 +225,8 @@ def scrape_profile_pages(client: httpx.Client, slug: str, *, max_ids: int) -> li
             continue
         if response.status_code != 200:
             if VERBOSE:
-                print(f"[scrape] {url} -> HTTP {response.status_code}", file=sys.stderr)
+                label = "BLOCKED" if is_linkedin_blocked(response.status_code, response.text) else "HTTP"
+                print(f"[scrape] {url} -> {label} {response.status_code}", file=sys.stderr)
             continue
         ids = extract_activity_ids(response.text)
         if VERBOSE:
@@ -213,7 +241,59 @@ def scrape_profile_pages(client: httpx.Client, slug: str, *, max_ids: int) -> li
     return found
 
 
-def search_engines(client: httpx.Client, slug: str, *, max_ids: int) -> list[str]:
+def google_cse_search(client: httpx.Client, slug: str, *, max_ids: int) -> list[str]:
+    api_key = GOOGLE_CSE_API_KEY or os.getenv("GOOGLE_CSE_API_KEY", "")
+    cx = GOOGLE_CSE_CX or os.getenv("GOOGLE_CSE_CX", "")
+    if not api_key or not cx:
+        return []
+
+    found: list[str] = []
+    seen: set[str] = set()
+    queries = [
+        f"site:linkedin.com/posts/{slug}",
+        f"site:linkedin.com/in/{slug}",
+    ]
+    for query in queries:
+        start = 1
+        while len(found) < max_ids and start <= 31:
+            try:
+                response = client.get(
+                    "https://www.googleapis.com/customsearch/v1",
+                    params={
+                        "key": api_key,
+                        "cx": cx,
+                        "q": query,
+                        "num": min(10, max_ids - len(found)),
+                        "start": start,
+                    },
+                )
+            except httpx.HTTPError as exc:
+                if VERBOSE:
+                    print(f"[cse] request failed: {exc}", file=sys.stderr)
+                break
+            if response.status_code != 200:
+                if VERBOSE:
+                    print(f"[cse] HTTP {response.status_code}: {response.text[:200]}", file=sys.stderr)
+                break
+            items = response.json().get("items", [])
+            if not items:
+                break
+            for item in items:
+                for activity_id in extract_activity_ids(item.get("link", "")):
+                    if activity_id in seen:
+                        continue
+                    seen.add(activity_id)
+                    found.append(activity_id)
+                    if len(found) >= max_ids:
+                        break
+            start += 10
+    if VERBOSE:
+        print(f"[cse] {len(found)} ids from Google CSE", file=sys.stderr)
+    return found[:max_ids]
+
+
+def search_engines_direct(slug: str, *, max_ids: int) -> list[str]:
+    """DDG/Bing без прокси — через заблокированный прокси не работают."""
     queries = [
         f"site:linkedin.com/posts/{slug}",
         f"site:linkedin.com/in/{slug} posts",
@@ -228,66 +308,77 @@ def search_engines(client: httpx.Client, slug: str, *, max_ids: int) -> list[str
             seen.add(activity_id)
             found.append(activity_id)
 
-    for query in queries:
-        if len(found) >= max_ids:
-            break
-        try:
-            response = client.get(
-                "https://html.duckduckgo.com/html/",
-                params={"q": query},
-                headers=BROWSER_HEADERS,
-            )
-            if response.status_code == 200:
-                collect(response.text)
-        except httpx.HTTPError:
-            pass
-        try:
-            response = client.get(
-                "https://www.bing.com/search",
-                params={"q": query},
-                headers=BROWSER_HEADERS,
-            )
-            if response.status_code == 200:
-                collect(response.text)
-        except httpx.HTTPError:
-            pass
+    with httpx.Client(timeout=30.0, follow_redirects=True, trust_env=False) as direct:
+        for query in queries:
+            if len(found) >= max_ids:
+                break
+            try:
+                response = direct.get(
+                    "https://html.duckduckgo.com/html/",
+                    params={"q": query},
+                    headers=BROWSER_HEADERS,
+                )
+                if response.status_code == 200:
+                    collect(response.text)
+            except httpx.HTTPError:
+                pass
+            try:
+                response = direct.get(
+                    "https://www.bing.com/search",
+                    params={"q": query},
+                    headers=BROWSER_HEADERS,
+                )
+                if response.status_code == 200:
+                    collect(response.text)
+            except httpx.HTTPError:
+                pass
 
     if VERBOSE:
-        print(f"[search] {len(found)} ids from DDG/Bing", file=sys.stderr)
+        print(f"[search] {len(found)} ids from DDG/Bing (direct)", file=sys.stderr)
     return found[:max_ids]
 
 
-def discover_activity_ids(client: httpx.Client, slug: str, *, max_ids: int) -> list[str]:
+def discover_activity_ids(li_client: httpx.Client, slug: str, *, max_ids: int) -> list[str]:
     found: list[str] = []
     seen: set[str] = set()
 
-    for activity_id in scrape_profile_pages(client, slug, max_ids=max_ids):
-        if activity_id not in seen:
+    def merge(ids: list[str]) -> None:
+        for activity_id in ids:
+            if activity_id in seen:
+                continue
             seen.add(activity_id)
             found.append(activity_id)
 
+    with httpx.Client(timeout=30.0, trust_env=False) as direct:
+        merge(google_cse_search(direct, slug, max_ids=max_ids))
+
     if len(found) < max_ids:
-        for activity_id in search_engines(client, slug, max_ids=max_ids - len(found)):
-            if activity_id not in seen:
-                seen.add(activity_id)
-                found.append(activity_id)
+        merge(scrape_profile_pages(li_client, slug, max_ids=max_ids - len(found)))
+
+    if len(found) < max_ids:
+        merge(search_engines_direct(slug, max_ids=max_ids - len(found)))
 
     return found[:max_ids]
 
 
-def fetch_posts(client: httpx.Client, profile: Profile, since: datetime) -> list[Post]:
-    activity_ids = discover_activity_ids(client, profile.slug, max_ids=MAX_POSTS * 3)
+def fetch_posts(li_client: httpx.Client, profile: Profile, since: datetime) -> list[Post]:
+    activity_ids = discover_activity_ids(li_client, profile.slug, max_ids=MAX_POSTS * 3)
     if VERBOSE:
         print(f"[total] {len(activity_ids)} activity ids", file=sys.stderr)
 
     posts: list[Post] = []
     seen: set[str] = set()
+    embed_failures = 0
 
     for activity_id in activity_ids:
         if activity_id in seen:
             continue
-        text, post_url, relative, author_slug = fetch_embed_post(client, activity_id)
+        try:
+            text, post_url, relative, author_slug = fetch_embed_post(li_client, activity_id)
+        except LinkedInBlocked:
+            raise
         if not text:
+            embed_failures += 1
             continue
         if author_slug and author_slug != profile.slug:
             continue
@@ -302,11 +393,30 @@ def fetch_posts(client: httpx.Client, profile: Profile, since: datetime) -> list
         if len(posts) >= MAX_POSTS:
             break
 
+    if not posts and activity_ids and embed_failures >= max(3, len(activity_ids) // 2):
+        raise LinkedInBlocked(f"found {len(activity_ids)} ids, embeds failed")
+
+    if not posts and not activity_ids:
+        cse_ok = bool(GOOGLE_CSE_API_KEY or os.getenv("GOOGLE_CSE_API_KEY"))
+        if not cse_ok:
+            print(
+                "HINT: LinkedIn scrape blocked (999). Set GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX "
+                "or change proxy.",
+                file=sys.stderr,
+            )
+        raise LinkedInBlocked("no activity ids discovered")
+
     return posts
 
 
+def _proxy_list() -> list[str]:
+    proxies = [p.strip() for p in (PROXY, PROXY_2) if p and p.strip()]
+    return proxies or [""]
+
+
 def main() -> None:
-    if not PROXY or not PROXY.strip():
+    proxies = _proxy_list()
+    if not proxies or not proxies[0]:
         print("ERROR: задайте PROXY в начале файла", file=sys.stderr)
         raise SystemExit(2)
 
@@ -315,17 +425,36 @@ def main() -> None:
 
     if VERBOSE:
         print(f"Profile: {profile.url}", file=sys.stderr)
-        print(f"Proxy:   {urlparse(PROXY).hostname}", file=sys.stderr)
+        print(f"Proxies: {[urlparse(p).hostname if p else 'direct' for p in proxies]}", file=sys.stderr)
         print(f"Since:   {since.date()}", file=sys.stderr)
 
-    with httpx.Client(
-        proxy=PROXY.strip(),
-        timeout=30.0,
-        follow_redirects=True,
-        http2=False,
-        trust_env=False,
-    ) as client:
-        posts = fetch_posts(client, profile, since)
+    posts: list[Post] = []
+    last_block: LinkedInBlocked | None = None
+
+    for proxy in proxies:
+        if VERBOSE and proxy:
+            print(f"--- trying proxy {urlparse(proxy).hostname} ---", file=sys.stderr)
+        try:
+            with httpx.Client(
+                proxy=proxy or None,
+                timeout=30.0,
+                follow_redirects=True,
+                http2=False,
+                trust_env=False,
+            ) as li_client:
+                posts = fetch_posts(li_client, profile, since)
+            last_block = None
+            break
+        except LinkedInBlocked as exc:
+            last_block = exc
+            if VERBOSE:
+                print(f"proxy blocked: {exc}", file=sys.stderr)
+            time.sleep(1)
+
+    if last_block:
+        print(f"BLOCKED: LinkedIn authwall / HTTP 999 — {last_block}", file=sys.stderr)
+        print("Смените прокси, настройте Google CSE, или подождите несколько часов.", file=sys.stderr)
+        raise SystemExit(3)
 
     print(json.dumps(
         {

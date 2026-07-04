@@ -25,6 +25,7 @@ def digest_title(lang: str, frequency: str, *, platform: str = "telegram") -> st
     period = t(lang, f"digest_period_{frequency}")
     keys = {
         "gmail": "digest_header_gmail",
+        "yandex": "digest_header_yandex",
         "linkedin": "digest_header_linkedin",
         "slack": "digest_header_slack",
         "combined": "digest_header_combined",

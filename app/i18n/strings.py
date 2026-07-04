@@ -29,6 +29,8 @@ STRINGS: dict[str, dict[str, str]] = {
             "Нужен Community Management API и LINKEDIN_EXTRA_SCOPES в .env."
         ),
         "platform_linkedin": "LinkedIn",
+        "platform_linkedin_locked": "временно недоступен",
+        "platform_yandex": "Яндекс Почта",
         "platform_coming_soon": "Скоро будет доступно",
         "soon": "скоро",
         "schedule_not_set": "расписание не задано",
@@ -38,6 +40,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_not_connected": "не подключено",
         "platform_status_channels": "{count} кан.",
         "platform_status_gmail": "✅ {email}",
+        "platform_status_yandex": "✅ {email}",
         "platform_connect_first": "Сначала подключите платформу",
         "platform_not_ready": "Настройте подключение и расписание",
         "platform_unavailable": "Платформа недоступна",
@@ -283,6 +286,40 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_gmail_connect": "🔗 Подключить Gmail",
         "btn_gmail_disconnect": "🔌 Отключить Gmail",
         "btn_gmail_continue": "✅ Продолжить",
+        "yandex_screen_hint": "Подключите Яндекс Почту для дайджеста входящих писем.",
+        "yandex_status_linked": "✅ {email}",
+        "yandex_status_not_linked": "<i>не подключена</i>",
+        "yandex_connect": (
+            "<b>📬 Подключение Яндекс Почты</b>\n\n"
+            "1. Нажмите «Подключить Яндекс» и разрешите доступ (только чтение).\n"
+            "2. После Яндекса вас вернёт на наш сервер — почта подключится автоматически.\n"
+            "3. Вернитесь в Telegram: придёт сообщение «Яндекс подключён» → нажмите «Продолжить»."
+        ),
+        "yandex_oauth_done_notify": (
+            "✅ <b>Яндекс Почта подключена</b>: {email}\n\n"
+            "Нажмите «Продолжить» — настройте расписание дайджеста."
+        ),
+        "yandex_paste_prompt": (
+            "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Яндекса.\n\n"
+            "Пример:\n"
+            "<code>http://localhost:8080/oauth/yandex/callback?state=...&code=...</code>"
+        ),
+        "yandex_code_invalid": "❌ Не нашёл code= в сообщении. Вставьте всю ссылку из браузера.",
+        "yandex_link_failed": "❌ Не удалось подключить Яндекс Почту. Код устарел — авторизуйтесь заново.",
+        "yandex_linked": "✅ Яндекс Почта подключена: <b>{email}</b>",
+        "yandex_not_linked": "❌ Сначала подключите Яндекс Почту.",
+        "yandex_token_expired": "❌ Доступ к Яндекс Почте истёк. Откройте Яндекс в боте и подключите снова.",
+        "yandex_token_invalid": "❌ Не удалось расшифровать Яндекс. Подключите почту заново в боте.",
+        "yandex_not_configured": "❌ Яндекс OAuth не настроен на сервере (YANDEX_CLIENT_ID / YANDEX_CLIENT_SECRET).",
+        "yandex_fetch_failed": "❌ Не удалось загрузить письма из Яндекс Почты.",
+        "yandex_disconnected": "Яндекс Почта отключена.",
+        "btn_yandex_connect": "🔗 Подключить Яндекс",
+        "btn_yandex_disconnect": "🔌 Отключить Яндекс",
+        "btn_yandex_paste": "📋 Вставить ссылку",
+        "btn_yandex_check": "🔄 Проверить Яндекс",
+        "btn_yandex_continue": "✅ Продолжить",
+        "no_yandex_emails": "ℹ️ За период «{label}» писем в Яндекс Почте нет.",
+        "digest_header_yandex": "🔥 *Твой Яндекс-дайджест {period}*",
         "no_emails": "ℹ️ За период «{label}» писем нет.",
         "digest_header_gmail": "🔥 *Твой email-дайджест {period}*",
         "digest_progress_fetch_gmail": "📡 Загружаю Gmail <b>{label}</b>{dots}",
@@ -390,6 +427,13 @@ STRINGS: dict[str, dict[str, str]] = {
             "❌ Для LinkedIn нужен прокси.\n"
             "Задайте OPENAI_PROXY_URL (и OPENAI_PROXY_URL_2) в .env на сервере."
         ),
+        "li_blocked": (
+            "🚫 LinkedIn блокирует прокси (HTTP 999 / authwall).\n\n"
+            "Что делать:\n"
+            "• Настройте GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX в .env\n"
+            "• Второй прокси с другим IP (OPENAI_PROXY_URL_2)\n"
+            "• Резидентный/мобильный IP вместо датацентра"
+        ),
         "no_linkedin_posts": "ℹ️ За период «{label}» постов нет.",
         "no_linkedin_posts_no_cse": (
             "ℹ️ За период «{label}» постов не найдено.\n\n"
@@ -432,6 +476,8 @@ STRINGS: dict[str, dict[str, str]] = {
             "Community Management API and LINKEDIN_EXTRA_SCOPES in .env are required."
         ),
         "platform_linkedin": "LinkedIn",
+        "platform_linkedin_locked": "temporarily unavailable",
+        "platform_yandex": "Yandex Mail",
         "platform_coming_soon": "Coming soon",
         "soon": "soon",
         "schedule_not_set": "schedule not set",
@@ -441,6 +487,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "platform_not_connected": "not connected",
         "platform_status_channels": "{count} ch.",
         "platform_status_gmail": "✅ {email}",
+        "platform_status_yandex": "✅ {email}",
         "platform_connect_first": "Connect the platform first",
         "platform_not_ready": "Set up connection and schedule",
         "platform_unavailable": "Platform unavailable",
@@ -686,6 +733,40 @@ STRINGS: dict[str, dict[str, str]] = {
         "btn_gmail_connect": "🔗 Connect Gmail",
         "btn_gmail_disconnect": "🔌 Disconnect Gmail",
         "btn_gmail_continue": "✅ Continue",
+        "yandex_screen_hint": "Connect Yandex Mail for inbox digest.",
+        "yandex_status_linked": "✅ {email}",
+        "yandex_status_not_linked": "<i>not connected</i>",
+        "yandex_connect": (
+            "<b>📬 Connect Yandex Mail</b>\n\n"
+            "1. Tap «Connect Yandex» and allow read-only access.\n"
+            "2. After Yandex redirects to our server, mail connects automatically.\n"
+            "3. Return to Telegram — you'll get «Yandex connected» → tap «Continue»."
+        ),
+        "yandex_oauth_done_notify": (
+            "✅ <b>Yandex Mail connected</b>: {email}\n\n"
+            "Tap «Continue» to set up digest schedule."
+        ),
+        "yandex_paste_prompt": (
+            "Paste the <b>full URL</b> from the browser address bar after Yandex authorization.\n\n"
+            "Example:\n"
+            "<code>http://localhost:8080/oauth/yandex/callback?state=...&code=...</code>"
+        ),
+        "yandex_code_invalid": "❌ No code= found. Paste the full browser URL.",
+        "yandex_link_failed": "❌ Failed to connect Yandex Mail. Code expired — authorize again.",
+        "yandex_linked": "✅ Yandex Mail connected: <b>{email}</b>",
+        "yandex_not_linked": "❌ Connect Yandex Mail first.",
+        "yandex_token_expired": "❌ Yandex Mail access expired. Open Yandex in the bot and connect again.",
+        "yandex_token_invalid": "❌ Could not decrypt Yandex tokens. Reconnect in the bot.",
+        "yandex_not_configured": "❌ Yandex OAuth is not configured on the server (YANDEX_CLIENT_ID / YANDEX_CLIENT_SECRET).",
+        "yandex_fetch_failed": "❌ Failed to fetch emails from Yandex Mail.",
+        "yandex_disconnected": "Yandex Mail disconnected.",
+        "btn_yandex_connect": "🔗 Connect Yandex",
+        "btn_yandex_disconnect": "🔌 Disconnect Yandex",
+        "btn_yandex_paste": "📋 Paste URL",
+        "btn_yandex_check": "🔄 Check Yandex",
+        "btn_yandex_continue": "✅ Continue",
+        "no_yandex_emails": "ℹ️ No Yandex Mail emails for «{label}».",
+        "digest_header_yandex": "🔥 *Your Yandex digest {period}*",
         "no_emails": "ℹ️ No emails for «{label}».",
         "digest_header_gmail": "🔥 *Your email digest {period}*",
         "digest_progress_fetch_gmail": "📡 Loading Gmail <b>{label}</b>{dots}",
@@ -792,6 +873,13 @@ STRINGS: dict[str, dict[str, str]] = {
         "li_proxy_missing": (
             "❌ LinkedIn requires a proxy.\n"
             "Set OPENAI_PROXY_URL (and OPENAI_PROXY_URL_2) in .env on the server."
+        ),
+        "li_blocked": (
+            "🚫 LinkedIn is blocking the proxy (HTTP 999 / authwall).\n\n"
+            "Try:\n"
+            "• Set GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX in .env\n"
+            "• Second proxy with a different IP (OPENAI_PROXY_URL_2)\n"
+            "• Residential/mobile IP instead of datacenter"
         ),
         "no_linkedin_posts": "ℹ️ No posts for «{label}».",
         "no_linkedin_posts_no_cse": (

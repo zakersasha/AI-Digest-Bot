@@ -13,6 +13,8 @@ async def is_platform_connected(session: AsyncSession, user: User, platform: str
         return await SourceRepository(session).count_active(user.id) > 0
     if platform == "gmail":
         return UserRepository(session).has_gmail(user)
+    if platform == "yandex":
+        return UserRepository(session).has_yandex(user)
     if platform == "slack":
         repo = UserRepository(session)
         if not repo.has_slack(user):
