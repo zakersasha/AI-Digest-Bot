@@ -15,7 +15,7 @@ from app.i18n import resolve_lang, t
 from app.services.digest_reschedule import reschedule_platform_digest
 from app.services.gmail_link import link_gmail_account
 from app.services.yandex_mail_link import link_yandex_account
-from app.utils.gmail_oauth import parse_oauth_code
+from app.utils.gmail_oauth import parse_oauth_code, parse_yandex_oauth_code
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -187,7 +187,7 @@ async def msg_yandex_code(
     session: AsyncSession,
 ) -> None:
     lang = await resolve_lang(session, message.from_user.id)
-    code = parse_oauth_code(message.text or "")
+    code = parse_yandex_oauth_code(message.text or "")
     if not code:
         await open_screen(message, state, t(lang, "yandex_code_invalid"), None)
         return

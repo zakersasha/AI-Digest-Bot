@@ -638,13 +638,9 @@ def _yandex_keyboard(lang: str, telegram_id: int, user, linked: bool) -> InlineK
     if not linked and yandex.is_configured():
         auth_url = yandex.build_auth_url(create_oauth_state(telegram_id))
         rows.append([InlineKeyboardButton(text=t(lang, "btn_yandex_connect"), url=auth_url)])
-        if settings.yandex_redirect_is_localhost():
-            rows.append(
-                [
-                    InlineKeyboardButton(text=t(lang, "btn_yandex_paste"), callback_data=CB_YANDEX_PASTE),
-                    InlineKeyboardButton(text=t(lang, "btn_yandex_check"), callback_data=CB_YANDEX_CHECK),
-                ]
-            )
+        rows.append(
+            [InlineKeyboardButton(text=t(lang, "btn_yandex_paste"), callback_data=CB_YANDEX_PASTE)]
+        )
     elif linked:
         rows.append(
             [InlineKeyboardButton(text=t(lang, "btn_yandex_disconnect"), callback_data=CB_YANDEX_DISCONNECT)]
@@ -677,7 +673,11 @@ async def show_yandex_screen(
 
     linked = UserRepository(session).has_yandex(user)
     settings = await PlatformSettingsRepository(session).get(user.id, "yandex")
-    text = f"<b>{t(lang, 'platform_yandex')}</b>\n\n{t(lang, 'yandex_screen_hint')}\n\n"
+    text = f"<b>{t(lang, 'platform_yandex')}</b>\n\n"
+    if linked:
+        text += f"{t(lang, 'yandex_screen_hint')}\n\n"
+    else:
+        text += f"{t(lang, 'yandex_connect')}\n\n"
     text += _format_yandex_status(user, lang)
     if linked:
         text += f"\n\n<b>{t(lang, 'schedule_label')}</b> {_schedule_line(lang, settings)}"

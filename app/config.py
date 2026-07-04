@@ -59,8 +59,9 @@ class Settings(BaseSettings):
     yandex_client_id: str = Field(default="", alias="YANDEX_CLIENT_ID")
     yandex_client_secret: str = Field(default="", alias="YANDEX_CLIENT_SECRET")
     yandex_redirect_uri: str = Field(
-        default="https://brieflybot.pro/oauth/yandex/callback",
+        default="https://oauth.yandex.ru/verification_code",
         alias="YANDEX_REDIRECT_URI",
+        description="Yandex web apps only allow this fixed callback URL",
     )
     yandex_max_messages: int = Field(default=50, alias="YANDEX_MAX_MESSAGES")
 
@@ -101,9 +102,8 @@ class Settings(BaseSettings):
         uri = self.gmail_redirect_uri.lower()
         return "localhost" in uri or "127.0.0.1" in uri
 
-    def yandex_redirect_is_localhost(self) -> bool:
-        uri = self.yandex_redirect_uri.lower()
-        return "localhost" in uri or "127.0.0.1" in uri
+    def yandex_uses_verification_code(self) -> bool:
+        return "verification_code" in self.yandex_redirect_uri.lower()
 
     def slack_redirect_is_localhost(self) -> bool:
         uri = self.slack_redirect_uri.lower()

@@ -290,21 +290,22 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_status_linked": "✅ {email}",
         "yandex_status_not_linked": "<i>не подключена</i>",
         "yandex_connect": (
-            "<b>📬 Подключение Яндекс Почты</b>\n\n"
-            "1. Нажмите «Подключить Яндекс» и разрешите доступ (только чтение).\n"
-            "2. После Яндекса вас вернёт на наш сервер — почта подключится автоматически.\n"
-            "3. Вернитесь в Telegram: придёт сообщение «Яндекс подключён» → нажмите «Продолжить»."
+            "<b>Как подключить</b>\n"
+            "1. Нажмите «Подключить Яндекс» и разрешите доступ к почте.\n"
+            "2. Яндекс откроет страницу с <b>кодом подтверждения</b>.\n"
+            "3. Скопируйте код и нажмите «Вставить код» в боте."
         ),
         "yandex_oauth_done_notify": (
             "✅ <b>Яндекс Почта подключена</b>: {email}\n\n"
             "Нажмите «Продолжить» — настройте расписание дайджеста."
         ),
         "yandex_paste_prompt": (
-            "Вставьте <b>полную ссылку</b> из адресной строки браузера после авторизации Яндекса.\n\n"
-            "Пример:\n"
-            "<code>http://localhost:8080/oauth/yandex/callback?state=...&code=...</code>"
+            "Вставьте <b>код подтверждения</b> со страницы Яндекса после авторизации.\n\n"
+            "Страница выглядит так:\n"
+            "<code>https://oauth.yandex.ru/verification_code</code>\n\n"
+            "Можно вставить сам код или полную ссылку из адресной строки."
         ),
-        "yandex_code_invalid": "❌ Не нашёл code= в сообщении. Вставьте всю ссылку из браузера.",
+        "yandex_code_invalid": "❌ Не удалось распознать код. Скопируйте код со страницы oauth.yandex.ru/verification_code.",
         "yandex_link_failed": "❌ Не удалось подключить Яндекс Почту. Код устарел — авторизуйтесь заново.",
         "yandex_linked": "✅ Яндекс Почта подключена: <b>{email}</b>",
         "yandex_not_linked": "❌ Сначала подключите Яндекс Почту.",
@@ -315,7 +316,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_disconnected": "Яндекс Почта отключена.",
         "btn_yandex_connect": "🔗 Подключить Яндекс",
         "btn_yandex_disconnect": "🔌 Отключить Яндекс",
-        "btn_yandex_paste": "📋 Вставить ссылку",
+        "btn_yandex_paste": "📋 Вставить код",
         "btn_yandex_check": "🔄 Проверить Яндекс",
         "btn_yandex_continue": "✅ Продолжить",
         "no_yandex_emails": "ℹ️ За период «{label}» писем в Яндекс Почте нет.",
@@ -737,21 +738,22 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_status_linked": "✅ {email}",
         "yandex_status_not_linked": "<i>not connected</i>",
         "yandex_connect": (
-            "<b>📬 Connect Yandex Mail</b>\n\n"
-            "1. Tap «Connect Yandex» and allow read-only access.\n"
-            "2. After Yandex redirects to our server, mail connects automatically.\n"
-            "3. Return to Telegram — you'll get «Yandex connected» → tap «Continue»."
+            "<b>How to connect</b>\n"
+            "1. Tap «Connect Yandex» and allow mail access.\n"
+            "2. Yandex opens a page with a <b>verification code</b>.\n"
+            "3. Copy the code and tap «Paste code» in the bot."
         ),
         "yandex_oauth_done_notify": (
             "✅ <b>Yandex Mail connected</b>: {email}\n\n"
             "Tap «Continue» to set up digest schedule."
         ),
         "yandex_paste_prompt": (
-            "Paste the <b>full URL</b> from the browser address bar after Yandex authorization.\n\n"
-            "Example:\n"
-            "<code>http://localhost:8080/oauth/yandex/callback?state=...&code=...</code>"
+            "Paste the <b>verification code</b> from the Yandex page after authorization.\n\n"
+            "The page URL is:\n"
+            "<code>https://oauth.yandex.ru/verification_code</code>\n\n"
+            "You can paste the code itself or the full URL from the address bar."
         ),
-        "yandex_code_invalid": "❌ No code= found. Paste the full browser URL.",
+        "yandex_code_invalid": "❌ Could not parse the code. Copy it from oauth.yandex.ru/verification_code.",
         "yandex_link_failed": "❌ Failed to connect Yandex Mail. Code expired — authorize again.",
         "yandex_linked": "✅ Yandex Mail connected: <b>{email}</b>",
         "yandex_not_linked": "❌ Connect Yandex Mail first.",
@@ -762,7 +764,7 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_disconnected": "Yandex Mail disconnected.",
         "btn_yandex_connect": "🔗 Connect Yandex",
         "btn_yandex_disconnect": "🔌 Disconnect Yandex",
-        "btn_yandex_paste": "📋 Paste URL",
+        "btn_yandex_paste": "📋 Paste code",
         "btn_yandex_check": "🔄 Check Yandex",
         "btn_yandex_continue": "✅ Continue",
         "no_yandex_emails": "ℹ️ No Yandex Mail emails for «{label}».",

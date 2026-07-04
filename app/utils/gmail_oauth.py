@@ -23,3 +23,17 @@ def parse_oauth_code(text: str) -> str | None:
         return raw
 
     return None
+
+
+def parse_yandex_oauth_code(text: str) -> str | None:
+    """Extract Yandex OAuth code from URL or plain text from verification_code page."""
+    code = parse_oauth_code(text)
+    if code:
+        return code
+    raw = (text or "").strip()
+    if not raw or "/" in raw or " " in raw:
+        return None
+    # Code copied from https://oauth.yandex.ru/verification_code page
+    if len(raw) >= 7:
+        return raw
+    return None
