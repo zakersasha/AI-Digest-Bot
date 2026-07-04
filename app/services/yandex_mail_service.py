@@ -16,7 +16,8 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-YANDEX_SCOPES = "login:email mail:imap"
+# Read-only IMAP — matches «Доступ на чтение писем в почтовом ящике» in oauth.yandex.ru
+YANDEX_DEFAULT_SCOPES = "mail:imap_ro"
 YANDEX_AUTH_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 YANDEX_USERINFO_URL = "https://login.yandex.ru/info"
@@ -36,10 +37,12 @@ class YandexMailService:
             "response_type": "code",
             "client_id": self._settings.yandex_client_id,
             "redirect_uri": self._settings.yandex_redirect_uri,
-            "scope": YANDEX_SCOPES,
             "state": state,
             "force_confirm": "yes",
         }
+        scopes = (self._settings.yandex_oauth_scopes or "").strip()
+        if scopes:
+            params["scope"] = scopes
         return f"{YANDEX_AUTH_URL}?{urlencode(params)}"
 
     async def exchange_code(self, code: str) -> dict:
@@ -104,15 +107,28 @@ class YandexMailService:
         return tokens["access_token"], tokens
 
     async def resolve_account_email(self, access_token: str) -> str:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                YANDEX_USERINFO_URL,
-                params={"format": "json"},
-                headers={"Authorization": f"OAuth {access_token}"},
-            )
-            response.raise_for_status()
-            data = response.json()
-        return data.get("default_email") or data.get("login", "") or ""
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    YANDEX_USERINFO_URL,
+                    params={"format": "json"},
+                    headers={"Authorization": f"OAuth {access_token}"},
+                )
+                if response.status_code != 200:
+                    return ""
+                data = response.json()
+        except httpx.HTTPError:
+            logger.warning("yandex_userinfo_failed")
+            return ""
+
+        email = data.get("default_email") or ""
+        if not email:
+            login = data.get("login") or ""
+            if login and "@" not in login:
+                email = f"{login}@yandex.ru"
+            else:
+                email = login
+        return email
 
     async def fetch_messages(
         self,

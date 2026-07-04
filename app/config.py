@@ -64,6 +64,11 @@ class Settings(BaseSettings):
         description="Yandex web apps only allow this fixed callback URL",
     )
     yandex_max_messages: int = Field(default=50, alias="YANDEX_MAX_MESSAGES")
+    yandex_oauth_scopes: str = Field(
+        default="mail:imap_ro",
+        alias="YANDEX_OAUTH_SCOPES",
+        description="Must match permissions in oauth.yandex.ru app (mail:imap_ro or mail:imap_full)",
+    )
 
     slack_client_id: str = Field(default="", alias="SLACK_CLIENT_ID")
     slack_client_secret: str = Field(default="", alias="SLACK_CLIENT_SECRET")
