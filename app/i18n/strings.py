@@ -291,9 +291,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_status_not_linked": "<i>не подключена</i>",
         "yandex_connect": (
             "<b>Как подключить</b>\n"
-            "1. Нажмите «Подключить Яндекс» и разрешите доступ к почте.\n"
-            "2. Яндекс откроет страницу с <b>кодом подтверждения</b>.\n"
-            "3. Скопируйте код и нажмите «Вставить код» в боте."
+            "1. Включите IMAP: <a href=\"https://mail.yandex.ru/#setup/client\">настройки почтовых программ</a> "
+            "→ imap.yandex.com + OAuth-токены.\n"
+            "2. Нажмите «Подключить Яндекс» и разрешите доступ к почте.\n"
+            "3. Скопируйте код со страницы Яндекса → «Вставить код» в боте."
         ),
         "yandex_oauth_done_notify": (
             "✅ <b>Яндекс Почта подключена</b>: {email}\n\n"
@@ -313,6 +314,18 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_token_invalid": "❌ Не удалось расшифровать Яндекс. Подключите почту заново в боте.",
         "yandex_not_configured": "❌ Яндекс OAuth не настроен на сервере (YANDEX_CLIENT_ID / YANDEX_CLIENT_SECRET).",
         "yandex_fetch_failed": "❌ Не удалось загрузить письма из Яндекс Почты.",
+        "yandex_imap_disabled": (
+            "❌ IMAP отключён в Яндекс Почте.\n\n"
+            "Откройте <a href=\"https://mail.yandex.ru/#setup/client\">настройки почтовых программ</a> "
+            "и включите:\n"
+            "• Сбор почты с сервера <b>imap.yandex.com</b>\n"
+            "• <b>Пароли приложений и OAuth-токены</b>\n\n"
+            "Сохраните и попробуйте дайджест снова."
+        ),
+        "yandex_imap_auth_failed": (
+            "❌ Яндекс не принял OAuth-токен для IMAP.\n"
+            "Проверьте настройки почтовых программ и переподключите Яндекс в боте."
+        ),
         "yandex_disconnected": "Яндекс Почта отключена.",
         "btn_yandex_connect": "🔗 Подключить Яндекс",
         "btn_yandex_disconnect": "🔌 Отключить Яндекс",
@@ -739,9 +752,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_status_not_linked": "<i>not connected</i>",
         "yandex_connect": (
             "<b>How to connect</b>\n"
-            "1. Tap «Connect Yandex» and allow mail access.\n"
-            "2. Yandex opens a page with a <b>verification code</b>.\n"
-            "3. Copy the code and tap «Paste code» in the bot."
+            "1. Enable IMAP: <a href=\"https://mail.yandex.ru/#setup/client\">mail client settings</a> "
+            "→ imap.yandex.com + OAuth tokens.\n"
+            "2. Tap «Connect Yandex» and allow mail access.\n"
+            "3. Copy the code from Yandex → «Paste code» in the bot."
         ),
         "yandex_oauth_done_notify": (
             "✅ <b>Yandex Mail connected</b>: {email}\n\n"
@@ -761,6 +775,18 @@ STRINGS: dict[str, dict[str, str]] = {
         "yandex_token_invalid": "❌ Could not decrypt Yandex tokens. Reconnect in the bot.",
         "yandex_not_configured": "❌ Yandex OAuth is not configured on the server (YANDEX_CLIENT_ID / YANDEX_CLIENT_SECRET).",
         "yandex_fetch_failed": "❌ Failed to fetch emails from Yandex Mail.",
+        "yandex_imap_disabled": (
+            "❌ IMAP is disabled in Yandex Mail.\n\n"
+            "Open <a href=\"https://mail.yandex.ru/#setup/client\">mail client settings</a> "
+            "and enable:\n"
+            "• Mail retrieval from <b>imap.yandex.com</b>\n"
+            "• <b>App passwords and OAuth tokens</b>\n\n"
+            "Save and try the digest again."
+        ),
+        "yandex_imap_auth_failed": (
+            "❌ Yandex rejected the OAuth token for IMAP.\n"
+            "Check mail client settings and reconnect Yandex in the bot."
+        ),
         "yandex_disconnected": "Yandex Mail disconnected.",
         "btn_yandex_connect": "🔗 Connect Yandex",
         "btn_yandex_disconnect": "🔌 Disconnect Yandex",

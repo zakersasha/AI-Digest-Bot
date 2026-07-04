@@ -25,6 +25,12 @@ YANDEX_VERIFICATION_REDIRECT = "https://oauth.yandex.ru/verification_code"
 IMAP_HOST = "imap.yandex.com"
 
 
+class YandexImapError(Exception):
+    def __init__(self, code: str, detail: str = "") -> None:
+        self.code = code
+        super().__init__(detail or code)
+
+
 class YandexMailService:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
@@ -107,6 +113,10 @@ class YandexMailService:
         return tokens["access_token"], tokens
 
     async def resolve_account_email(self, access_token: str) -> str:
+        profile = await self._fetch_profile(access_token)
+        return profile.get("email") or ""
+
+    async def _fetch_profile(self, access_token: str) -> dict[str, str]:
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.get(
@@ -115,20 +125,20 @@ class YandexMailService:
                     headers={"Authorization": f"OAuth {access_token}"},
                 )
                 if response.status_code != 200:
-                    return ""
+                    return {}
                 data = response.json()
         except httpx.HTTPError:
             logger.warning("yandex_userinfo_failed")
-            return ""
+            return {}
 
-        email = data.get("default_email") or ""
-        if not email:
-            login = data.get("login") or ""
-            if login and "@" not in login:
-                email = f"{login}@yandex.ru"
-            else:
-                email = login
-        return email
+        login = (data.get("login") or "").strip()
+        email = (data.get("default_email") or "").strip()
+        if not email and login and "@" not in login:
+            email = f"{login}@yandex.ru"
+        elif not email:
+            email = login
+
+        return {"email": email, "login": login}
 
     async def fetch_messages(
         self,
@@ -137,18 +147,29 @@ class YandexMailService:
         max_messages: int,
     ) -> tuple[list[ContentMessage], dict]:
         access_token, tokens = await self.get_access_token(encrypted_tokens)
-        email_addr = tokens.get("email") or await self.resolve_account_email(access_token)
+        login = tokens.get("login")
+        email_addr = tokens.get("email")
+        if not email_addr or not login:
+            profile = await self._fetch_profile(access_token)
+            email_addr = email_addr or profile.get("email", "")
+            login = login or profile.get("login")
         if not email_addr:
             raise ValueError("yandex_email_unresolved")
         tokens["email"] = email_addr
+        if login:
+            tokens["login"] = login
 
-        messages = await asyncio.to_thread(
-            _fetch_imap_messages,
-            email_addr,
-            access_token,
-            since,
-            max_messages,
-        )
+        try:
+            messages = await asyncio.to_thread(
+                _fetch_imap_messages,
+                email_addr,
+                access_token,
+                since,
+                max_messages,
+                login,
+            )
+        except YandexImapError as exc:
+            raise ValueError(exc.code) from exc
         logger.info("yandex_messages_fetched", count=len(messages), since=since.isoformat())
         return messages, tokens
 
@@ -161,6 +182,11 @@ class YandexMailService:
             "expires_at": expires_at,
         }
         email_addr = await self.resolve_account_email(tokens["access_token"])
+        profile = await self._fetch_profile(tokens["access_token"])
+        if profile.get("email"):
+            email_addr = profile["email"]
+        if profile.get("login"):
+            tokens["login"] = profile["login"]
         if email_addr:
             tokens["email"] = email_addr
         return tokens, email_addr or "Yandex Mail"
@@ -171,7 +197,44 @@ def yandex_message_url(uid: str) -> str:
 
 
 def _oauth2_string(username: str, access_token: str) -> bytes:
-    return f"user={username}\x01auth=Bearer {access_token}\x01\x01".encode()
+    user = username.strip()
+    token = access_token.strip()
+    return f"user={user}\x01auth=Bearer {token}\x01\x01".encode()
+
+
+def _imap_email_candidates(email_addr: str, login: str | None) -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def add(addr: str | None) -> None:
+        addr = (addr or "").strip()
+        if not addr or addr in seen:
+            return
+        seen.add(addr)
+        candidates.append(addr)
+
+    add(email_addr)
+    if login:
+        login = login.strip()
+        if "@" in login:
+            add(login)
+        else:
+            for domain in ("yandex.ru", "ya.ru", "yandex.com"):
+                add(f"{login}@{domain}")
+    return candidates
+
+
+def _imap_auth_error_code(exc: imaplib.IMAP4.error) -> str:
+    text = str(exc).lower()
+    if "imap is disabled" in text:
+        return "yandex_imap_disabled"
+    return "yandex_imap_auth_failed"
+
+
+def _connect_imap(email_addr: str, access_token: str) -> imaplib.IMAP4_SSL:
+    mail = imaplib.IMAP4_SSL(IMAP_HOST, 993)
+    mail.authenticate("XOAUTH2", lambda _challenge: _oauth2_string(email_addr, access_token))
+    return mail
 
 
 def _decode_header_value(value: str) -> str:
@@ -211,62 +274,85 @@ def _fetch_imap_messages(
     access_token: str,
     since: datetime,
     max_messages: int,
+    login: str | None = None,
 ) -> list[ContentMessage]:
-    mail = imaplib.IMAP4_SSL(IMAP_HOST, 993)
-    try:
-        mail.authenticate("XOAUTH2", lambda _challenge: _oauth2_string(email_addr, access_token))
-        mail.select("INBOX")
-        since_str = since.strftime("%d-%b-%Y")
-        status, data = mail.search(None, f'(SINCE "{since_str}")')
-        if status != "OK" or not data or not data[0]:
-            return []
+    last_error: imaplib.IMAP4.error | None = None
+    last_code = "yandex_imap_auth_failed"
 
-        uids = data[0].split()
-        uids = uids[-max_messages:]
-        messages: list[ContentMessage] = []
-
-        for uid in reversed(uids):
-            status, fetched = mail.fetch(uid, "(RFC822)")
-            if status != "OK" or not fetched or not fetched[0]:
-                continue
-            raw = fetched[0][1]
-            if not isinstance(raw, (bytes, bytearray)):
-                continue
-            msg = email.message_from_bytes(raw)
-            subject = _decode_header_value(msg.get("Subject", "(no subject)"))
-            sender = _decode_header_value(msg.get("From", "unknown"))
-            _, addr = parseaddr(sender)
-            body = _extract_plain_text(msg)
-            if not body:
-                continue
-
-            date_hdr = msg.get("Date")
-            try:
-                msg_date = parsedate_to_datetime(date_hdr) if date_hdr else datetime.now(tz=UTC)
-                if msg_date.tzinfo is None:
-                    msg_date = msg_date.replace(tzinfo=UTC)
-            except (TypeError, ValueError):
-                msg_date = datetime.now(tz=UTC)
-
-            if msg_date < since:
-                continue
-
-            uid_str = uid.decode() if isinstance(uid, bytes) else str(uid)
-            label = addr or sender
-            text = f"Subject: {subject}\nFrom: {sender}\n\n{body}"
-            messages.append(
-                ContentMessage(
-                    text=text,
-                    source=f"yandex:{label}",
-                    date=msg_date,
-                    message_id=uid_str,
-                    post_url=yandex_message_url(uid_str),
-                )
-            )
-        messages.sort(key=lambda item: item.date)
-        return messages
-    finally:
+    for candidate in _imap_email_candidates(email_addr, login):
+        mail: imaplib.IMAP4_SSL | None = None
         try:
-            mail.logout()
-        except Exception:
-            pass
+            mail = _connect_imap(candidate, access_token)
+            messages = _read_imap_inbox(mail, since, max_messages)
+            if candidate != email_addr:
+                logger.info("yandex_imap_email_fallback", email=candidate)
+            return messages
+        except imaplib.IMAP4.error as exc:
+            last_error = exc
+            last_code = _imap_auth_error_code(exc)
+            logger.warning("yandex_imap_auth_try_failed", email=candidate, error=str(exc))
+        finally:
+            if mail is not None:
+                try:
+                    mail.logout()
+                except Exception:
+                    pass
+
+    raise YandexImapError(last_code, str(last_error) if last_error else last_code)
+
+
+def _read_imap_inbox(
+    mail: imaplib.IMAP4_SSL,
+    since: datetime,
+    max_messages: int,
+) -> list[ContentMessage]:
+    mail.select("INBOX")
+    since_str = since.strftime("%d-%b-%Y")
+    status, data = mail.search(None, f'(SINCE "{since_str}")')
+    if status != "OK" or not data or not data[0]:
+        return []
+
+    uids = data[0].split()
+    uids = uids[-max_messages:]
+    messages: list[ContentMessage] = []
+
+    for uid in reversed(uids):
+        status, fetched = mail.fetch(uid, "(RFC822)")
+        if status != "OK" or not fetched or not fetched[0]:
+            continue
+        raw = fetched[0][1]
+        if not isinstance(raw, (bytes, bytearray)):
+            continue
+        msg = email.message_from_bytes(raw)
+        subject = _decode_header_value(msg.get("Subject", "(no subject)"))
+        sender = _decode_header_value(msg.get("From", "unknown"))
+        _, addr = parseaddr(sender)
+        body = _extract_plain_text(msg)
+        if not body:
+            continue
+
+        date_hdr = msg.get("Date")
+        try:
+            msg_date = parsedate_to_datetime(date_hdr) if date_hdr else datetime.now(tz=UTC)
+            if msg_date.tzinfo is None:
+                msg_date = msg_date.replace(tzinfo=UTC)
+        except (TypeError, ValueError):
+            msg_date = datetime.now(tz=UTC)
+
+        if msg_date < since:
+            continue
+
+        uid_str = uid.decode() if isinstance(uid, bytes) else str(uid)
+        label = addr or sender
+        text = f"Subject: {subject}\nFrom: {sender}\n\n{body}"
+        messages.append(
+            ContentMessage(
+                text=text,
+                source=f"yandex:{label}",
+                date=msg_date,
+                message_id=uid_str,
+                post_url=yandex_message_url(uid_str),
+            )
+        )
+    messages.sort(key=lambda item: item.date)
+    return messages

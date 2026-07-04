@@ -211,6 +211,10 @@ class DigestService:
                 await self._user_repo.clear_yandex(user.telegram_id)
                 await self._session.commit()
                 raise ValueError(t(language, "yandex_token_invalid")) from exc
+            if reason == "yandex_imap_disabled":
+                raise ValueError(t(language, "yandex_imap_disabled")) from exc
+            if reason == "yandex_imap_auth_failed":
+                raise ValueError(t(language, "yandex_imap_auth_failed")) from exc
             raise ValueError(t(language, "yandex_not_linked")) from exc
         except Exception as exc:
             logger.error("yandex_fetch_failed", user_id=user.id, error=str(exc))
