@@ -25,10 +25,16 @@ _PROGRESS_KEYS = (
 
 
 def _progress_keys(platform: str) -> tuple[str, str, str]:
-    if platform in ("gmail", "yandex"):
+    if platform == "gmail":
         return (
             "digest_progress_fetch_gmail",
             "digest_progress_read_gmail",
+            "digest_progress_ai",
+        )
+    if platform == "yandex":
+        return (
+            "digest_progress_fetch_yandex",
+            "digest_progress_read_yandex",
             "digest_progress_ai",
         )
     if platform == "linkedin":
@@ -50,6 +56,10 @@ def _progress_keys(platform: str) -> tuple[str, str, str]:
             "digest_progress_ai",
         )
     return _PROGRESS_KEYS
+
+
+def digest_progress_start_key(platform: str) -> str:
+    return _progress_keys(platform)[0]
 
 
 async def _progress_loop(

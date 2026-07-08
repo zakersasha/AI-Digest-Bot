@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.digest_ui import deliver_digest, run_with_digest_progress
+from app.bot.digest_ui import deliver_digest, digest_progress_start_key, run_with_digest_progress
 from app.bot.onboarding_flow import finish_guided, is_guided, set_flow_step
 from app.bot.keyboards import (
     CB_ACTION_MENU,
@@ -376,7 +376,12 @@ async def cb_flow_or_test_digest(
 
     await callback.answer()
     label = frequency_label(lang, frequency)
-    await edit_from_callback(callback, state, t(lang, "digest_progress_fetch", label=label, dots="."), None)
+    await edit_from_callback(
+        callback,
+        state,
+        t(lang, digest_progress_start_key(platform), label=label, dots="."),
+        None,
+    )
 
     async with lock:
         try:
@@ -465,7 +470,12 @@ async def cb_test_digest_other(
 
     await callback.answer()
     label = frequency_label(lang, frequency)
-    await edit_from_callback(callback, state, t(lang, "digest_progress_fetch", label=label, dots="."), None)
+    await edit_from_callback(
+        callback,
+        state,
+        t(lang, digest_progress_start_key(platform), label=label, dots="."),
+        None,
+    )
 
     async with lock:
         try:

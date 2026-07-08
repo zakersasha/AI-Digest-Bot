@@ -1,10 +1,13 @@
 import asyncio
+import calendar
 import email
 import imaplib
 import json
+import re
 from datetime import UTC, datetime
 from email.header import decode_header
 from email.utils import parseaddr, parsedate_to_datetime
+from html import unescape
 from urllib.parse import urlencode
 
 import httpx
@@ -237,6 +240,18 @@ def _connect_imap(email_addr: str, access_token: str) -> imaplib.IMAP4_SSL:
     return mail
 
 
+def _imap_since_str(moment: datetime) -> str:
+    """IMAP SINCE requires English month abbreviations (e.g. 04-Jul-2026)."""
+    month = calendar.month_abbr[moment.month]
+    return f"{moment.day:02d}-{month}-{moment.year}"
+
+
+def _strip_html(html: str) -> str:
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return unescape(re.sub(r"\s+", " ", text)).strip()
+
+
 def _decode_header_value(value: str) -> str:
     parts: list[str] = []
     for chunk, charset in decode_header(value):
@@ -254,19 +269,34 @@ def _extract_plain_text(msg: email.message.Message) -> str:
                 payload = part.get_payload(decode=True)
                 if payload:
                     charset = part.get_content_charset() or "utf-8"
-                    return payload.decode(charset, errors="replace").strip()
+                    text = payload.decode(charset, errors="replace").strip()
+                    if text:
+                        return text
+        for part in msg.walk():
+            if part.get_content_type() == "text/html" and not part.get_content_disposition():
+                payload = part.get_payload(decode=True)
+                if payload:
+                    charset = part.get_content_charset() or "utf-8"
+                    text = _strip_html(payload.decode(charset, errors="replace"))
+                    if text:
+                        return text
         for part in msg.walk():
             if part.get_content_type().startswith("text/"):
                 payload = part.get_payload(decode=True)
                 if payload:
                     charset = part.get_content_charset() or "utf-8"
-                    return payload.decode(charset, errors="replace").strip()
+                    text = payload.decode(charset, errors="replace").strip()
+                    if text:
+                        return text
         return ""
     payload = msg.get_payload(decode=True)
     if not payload:
         return ""
     charset = msg.get_content_charset() or "utf-8"
-    return payload.decode(charset, errors="replace").strip()
+    raw = payload.decode(charset, errors="replace").strip()
+    if msg.get_content_type() == "text/html":
+        return _strip_html(raw)
+    return raw
 
 
 def _fetch_imap_messages(
@@ -307,14 +337,23 @@ def _read_imap_inbox(
     max_messages: int,
 ) -> list[ContentMessage]:
     mail.select("INBOX")
-    since_str = since.strftime("%d-%b-%Y")
+    since_str = _imap_since_str(since.astimezone(UTC))
     status, data = mail.search(None, f'(SINCE "{since_str}")')
-    if status != "OK" or not data or not data[0]:
+    uids: list[bytes] = []
+    if status == "OK" and data and data[0]:
+        uids = data[0].split()
+    if not uids:
+        status, data = mail.search(None, "ALL")
+        if status == "OK" and data and data[0]:
+            uids = data[0].split()
+            logger.info("yandex_imap_since_empty_fallback_all", since=since_str, total=len(uids))
+
+    if not uids:
         return []
 
-    uids = data[0].split()
     uids = uids[-max_messages:]
     messages: list[ContentMessage] = []
+    skipped_empty = 0
 
     for uid in reversed(uids):
         status, fetched = mail.fetch(uid, "(RFC822)")
@@ -328,7 +367,10 @@ def _read_imap_inbox(
         sender = _decode_header_value(msg.get("From", "unknown"))
         _, addr = parseaddr(sender)
         body = _extract_plain_text(msg)
+        if not body and subject and subject != "(no subject)":
+            body = subject
         if not body:
+            skipped_empty += 1
             continue
 
         date_hdr = msg.get("Date")
@@ -354,5 +396,7 @@ def _read_imap_inbox(
                 post_url=yandex_message_url(uid_str),
             )
         )
+    if skipped_empty:
+        logger.info("yandex_imap_skipped_empty_body", count=skipped_empty)
     messages.sort(key=lambda item: item.date)
     return messages
