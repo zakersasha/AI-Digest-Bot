@@ -27,6 +27,7 @@ from app.services.message_selection import interleave_messages_by_source, select
 from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import telethon_for_digest
 from app.utils.digest_links import format_digest_links, is_no_new_content_response
+from app.utils.inbox_digest import fallback_inbox_digest
 from app.utils.links import channel_username
 from app.utils.logging import get_logger
 
@@ -502,12 +503,16 @@ class DigestService:
 
         digest_body = digest_body.strip()
         label = frequency_label(language, frequency)
+        link_label = t(language, "digest_link_label")
+
+        if is_no_new_content_response(digest_body) and platform in ("gmail", "yandex") and items:
+            logger.info("digest_inbox_ai_empty_fallback", user_id=user_id, platform=platform, items=len(items))
+            digest_body = fallback_inbox_digest(items, link_label)
 
         if is_no_new_content_response(digest_body):
             logger.info("digest_no_new_content", user_id=user_id, platform=platform)
             raise ValueError(t(language, "digest_nothing_new", label=label))
 
-        link_label = t(language, "digest_link_label")
         digest_body = format_digest_links(digest_body, link_label, post_urls)
 
         if not digest_body or is_no_new_content_response(digest_body):

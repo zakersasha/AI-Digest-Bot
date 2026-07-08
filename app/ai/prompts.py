@@ -316,19 +316,39 @@ TELEGRAM_DIGEST_PROMPT = (
     + "\n\nWrite only in {language_name}.\n\nPosts:\n{messages}"
 )
 
-GMAIL_DIGEST_PROMPT = (
-    COMMON_PROMPT
-    + "\n\n"
-    + _GMAIL_RULES
-    + "\n\nWrite only in {language_name}.\n\nEmails:\n{messages}"
-)
+_INBOX_EMAIL_PROMPT = """
+You are a personal inbox assistant. Summarize emails the user should not miss.
 
-YANDEX_DIGEST_PROMPT = (
-    COMMON_PROMPT
-    + "\n\n"
-    + _YANDEX_RULES
-    + "\n\nWrite only in {language_name}.\n\nEmails:\n{messages}"
-)
+INCLUDE when present:
+- Messages from real people
+- Orders, deliveries, shipping updates
+- Bills, invoices, payments, subscriptions
+- Security alerts, login notices, account changes
+- Appointments, bookings, travel confirmations
+- Work requests and deadlines
+- Official or government mail
+
+SKIP only obvious junk:
+- Pure mass marketing with no personal relevance
+- Repetitive promo blasts with no actionable content
+
+Important:
+- If the input contains any non-spam emails, write at least one digest item.
+- Return exactly NO_NEW_CONTENT only when EVERY email is clearly spam or promo with zero actionable value.
+- Maximum 7 items, sorted by urgency (most urgent first).
+- Each item: **Sender** — 1-2 concise sentences. [{link_label}](POST_URL)
+
+""" + _LINK_RULES.strip() + """
+
+Write only in {language_name}.
+
+Emails:
+{messages}
+"""
+
+GMAIL_DIGEST_PROMPT = _INBOX_EMAIL_PROMPT
+YANDEX_DIGEST_PROMPT = _INBOX_EMAIL_PROMPT
+INBOX_EMAIL_DIGEST_PROMPT = _INBOX_EMAIL_PROMPT
 
 SLACK_DIGEST_PROMPT = (
     COMMON_PROMPT
