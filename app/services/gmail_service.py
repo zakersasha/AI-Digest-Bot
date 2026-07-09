@@ -1,7 +1,9 @@
 import base64
 import json
+import re
 from datetime import UTC, datetime
 from email.utils import parseaddr
+from html import unescape
 from urllib.parse import urlencode
 
 import httpx
@@ -38,6 +40,7 @@ class GmailService:
             "scope": GMAIL_SCOPES,
             "access_type": "offline",
             "include_granted_scopes": "true",
+            "prompt": "consent",
             "state": state,
         }
         return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
@@ -173,7 +176,7 @@ class GmailService:
                 if msg_resp.status_code != 200:
                     continue
                 parsed = _parse_gmail_message(msg_resp.json())
-                if parsed and parsed.date >= since:
+                if parsed and _include_gmail_message(parsed.date, since):
                     messages.append(parsed)
 
         messages.sort(key=lambda m: m.date)
@@ -198,6 +201,19 @@ def gmail_message_url(message_id: str) -> str:
     return f"https://mail.google.com/mail/u/0/#inbox/{message_id}"
 
 
+def _strip_html(html: str) -> str:
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    return unescape(re.sub(r"\s+", " ", text)).strip()
+
+
+def _include_gmail_message(msg_date: datetime, since: datetime) -> bool:
+    if msg_date >= since:
+        return True
+    # Gmail query 'after:YYYY/MM/DD' is day-granular — keep same-calendar-day mail.
+    return msg_date.date() == since.date()
+
+
 def _decode_body(data: str) -> str:
     padded = data + "=" * (-len(data) % 4)
     return base64.urlsafe_b64decode(padded.encode()).decode("utf-8", errors="replace")
@@ -218,6 +234,17 @@ def _extract_plain_text(payload: dict) -> str:
         text = _extract_plain_text(part)
         if text:
             return text
+
+    for part in payload.get("parts", []):
+        if part.get("mimeType") == "text/html":
+            part_data = part.get("body", {}).get("data")
+            if part_data:
+                text = _strip_html(_decode_body(part_data))
+                if text:
+                    return text
+
+    if data and mime == "text/html":
+        return _strip_html(_decode_body(data)).strip()
     if data and mime.startswith("text/"):
         return _decode_body(data).strip()
     return ""

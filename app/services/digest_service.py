@@ -27,7 +27,7 @@ from app.services.message_selection import interleave_messages_by_source, select
 from app.services.platform_readiness import can_deliver_platform
 from app.services.telethon_client import telethon_for_digest
 from app.utils.digest_links import format_digest_links, is_no_new_content_response
-from app.utils.inbox_digest import fallback_inbox_digest
+from app.utils.inbox_digest import fallback_channel_digest, fallback_inbox_digest
 from app.utils.links import channel_username
 from app.utils.logging import get_logger
 
@@ -508,6 +508,9 @@ class DigestService:
         if is_no_new_content_response(digest_body) and platform in ("gmail", "yandex") and items:
             logger.info("digest_inbox_ai_empty_fallback", user_id=user_id, platform=platform, items=len(items))
             digest_body = fallback_inbox_digest(items, link_label)
+        elif is_no_new_content_response(digest_body) and platform == "telegram" and items:
+            logger.info("digest_telegram_ai_empty_fallback", user_id=user_id, items=len(items))
+            digest_body = fallback_channel_digest(items, link_label)
 
         if is_no_new_content_response(digest_body):
             logger.info("digest_no_new_content", user_id=user_id, platform=platform)

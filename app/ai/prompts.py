@@ -199,6 +199,10 @@ Avoid:
 - Opinions
 - Daily chatter
 - Memes
+
+When multiple channel posts are provided and they contain news or updates,
+include at least the 3 most important items.
+Return NO_NEW_CONTENT only when every post is pure spam, ads, or empty noise.
 """
 
 _GMAIL_RULES = """

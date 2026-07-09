@@ -121,6 +121,7 @@ class UserRepository:
         user = await self.get_by_telegram_id(telegram_id)
         if not user:
             return None
+        tokens = self._merge_gmail_refresh_token(user, tokens)
         user.gmail_tokens_encrypted = GmailService.encrypt_tokens(tokens)
         user.gmail_email = email
         user.gmail_linked_at = datetime.now(tz=UTC)
@@ -132,8 +133,24 @@ class UserRepository:
 
         result = await self._session.execute(select(User).where(User.id == user_id))
         user = result.scalar_one()
+        tokens = self._merge_gmail_refresh_token(user, tokens)
         user.gmail_tokens_encrypted = GmailService.encrypt_tokens(tokens)
         await self._session.flush()
+
+    @staticmethod
+    def _merge_gmail_refresh_token(user: User, tokens: dict) -> dict:
+        if tokens.get("refresh_token") or not user.gmail_tokens_encrypted:
+            return tokens
+        from app.services.gmail_service import GmailService
+
+        try:
+            old = GmailService.decrypt_tokens(user.gmail_tokens_encrypted)
+        except ValueError:
+            return tokens
+        merged = dict(tokens)
+        if old.get("refresh_token"):
+            merged["refresh_token"] = old["refresh_token"]
+        return merged
 
     async def clear_gmail(self, telegram_id: int) -> User | None:
         user = await self.get_by_telegram_id(telegram_id)

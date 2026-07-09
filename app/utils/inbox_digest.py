@@ -24,3 +24,19 @@ def fallback_inbox_digest(
         lines.append(f"{idx}. **{source}** — {summary} [{link_label}]({url})")
 
     return "\n\n".join(lines)
+
+
+def fallback_channel_digest(
+    items: list[tuple[str, str, str]],
+    link_label: str,
+    *,
+    max_items: int = 7,
+) -> str:
+    """Plain preview digest for Telegram/Slack when the AI returns NO_NEW_CONTENT."""
+    lines: list[str] = []
+    for idx, (source, url, text) in enumerate(items[:max_items], 1):
+        preview = text.strip().replace("\n", " ")
+        if len(preview) > 180:
+            preview = preview[:177] + "..."
+        lines.append(f"{idx}. **{source}** — {preview} [{link_label}]({url})")
+    return "\n\n".join(lines)
